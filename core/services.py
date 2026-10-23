@@ -18,7 +18,7 @@ from core.structures.stack import UndoStack
 
 
 class ParkingSystem:
-    """ Facede: atau satu pintu untuk seluruh structure data smart Parking."""
+    """Facede: atau satu pintu untuk seluruh structure data smart Parking."""
 
     def __init__(self, capacity: int = SLOT_CAPACITY) -> None:
         self.slots: ParkingSlots = ParkingSlots(capacity)
@@ -27,20 +27,22 @@ class ParkingSystem:
         self.undo: UndoStack = UndoStack()
         self.history: ParkingHistory = ParkingHistory()
 
-
     """ METHOD: Registrasi"""
-    def registrasi(self, vehicle_id: str, plate: str, owner: str, vtype: VehicleType) -> Result[Vehicle]:
-        if not all([vehicle_id, plate, owner, vtype]):
+
+    def registrasi(self, plate: str, owner: str, vtype: VehicleType) -> Result[Vehicle]:
+        if not all([plate, owner, vtype]):
             return Result.fail("Semua field harus diisi")
-        if self.vehicles.search(vehicle_id, by="id") or self.vehicles.search(plate, by="plate"):
+        if self.vehicles.search(plate, by="plate"):
             return Result.fail("Kendaraan sudah terdaftar")
 
+        vehicle_id = f"V{self.vehicles.size + 1:03d}"
+        
         v = Vehicle(vehicle_id, plate, owner, vtype)
         self.vehicles.insert(v)
-        return Result.success(f"{vehicle_id} sudah {v.status}", v)
-
+        return Result.success(f"{plate} sudah {v.status}", v)
 
     """ METHOD: Check-in """
+
     def check_in(self, vehicle_plate: str) -> Result[Vehicle]:
         v = self.vehicles.search(vehicle_plate, by="plate")
         if v is None:
@@ -52,7 +54,9 @@ class ParkingSystem:
         if idx != -1:
             self.slots.assign(idx, v.vehicle_id)
             v.status, v.slot_index, v.entry_time = "PARKED", idx, datetime.now()
-            self.undo.push(Transaction(tx_type="CHECK_IN", vehicle_id=v.vehicle_id, slot_index=idx))
+            self.undo.push(
+                Transaction(tx_type="CHECK_IN", vehicle_id=v.vehicle_id, slot_index=idx)
+            )
             return Result.success(f"{vehicle_plate} parkir di {slot_code(idx)}", v)
 
         self.queue.enqueue(v)
@@ -60,8 +64,8 @@ class ParkingSystem:
         self.undo.push(Transaction(tx_type="ENQUEUE", vehicle_id=v.vehicle_id))
         return Result.success(f"{vehicle_plate} masuk antrean", v)
 
-
     """ METHOD: Check-out """
+
     def check_out(self, vehicle_plate: str) -> Result[Vehicle]:
         v = self.vehicles.search(vehicle_plate, by="plate")
         if v is None or v.status != "PARKED":
@@ -72,7 +76,9 @@ class ParkingSystem:
 
         idx = v.slot_index
         self.slots.release(idx)
-        record = HistoryRecord(v.vehicle_id, v.plate, slot_code(idx), v.entry_time, datetime.now())
+        record = HistoryRecord(
+            v.vehicle_id, v.plate, slot_code(idx), v.entry_time, datetime.now()
+        )
         self.history.add(record)
         v.status, v.slot_index = "EXITED", None
 
@@ -81,27 +87,38 @@ class ParkingSystem:
             nxt = self.queue.dequeue()
             if nxt is not None:
                 self.slots.assign(idx, nxt.vehicle_id)
-                nxt.status, nxt.slot_index, nxt.entry_time = "PARKED", idx, datetime.now()
+                nxt.status, nxt.slot_index, nxt.entry_time = (
+                    "PARKED",
+                    idx,
+                    datetime.now(),
+                )
                 promoted_vehicle = nxt
 
-        self.undo.push(Transaction(
-            tx_type="CHECK_OUT",
-            vehicle_id=v.vehicle_id,
-            slot_index=idx,
-            promoted_id=promoted_vehicle.vehicle_id if promoted_vehicle else None
-        ))
+        self.undo.push(
+            Transaction(
+                tx_type="CHECK_OUT",
+                vehicle_id=v.vehicle_id,
+                slot_index=idx,
+                promoted_id=promoted_vehicle.vehicle_id if promoted_vehicle else None,
+            )
+        )
         msg = f"{vehicle_plate} keluar dari {slot_code(idx)}"
         if promoted_vehicle:
             msg += f", {promoted_vehicle.plate} naik dari antrean"
         return Result.success(msg, v)
 
     """ SEARCH """
+
     def search(self, key: str, by: SearchBy = "plate") -> Result[Vehicle]:
         v = self.vehicles.search(key, by)
-        return Result.success("Ditemukan", v) if v else Result.fail("Kendaran tidak ditemukan")
-
+        return (
+            Result.success("Ditemukan", v)
+            if v
+            else Result.fail("Kendaran tidak ditemukan")
+        )
 
     """ UNDO """
+
     def undo_last(self) -> Result[Transaction]:
         # Menggunakan self.undo, bukan global undo
         if self.undo.is_empty():
@@ -128,7 +145,7 @@ class ParkingSystem:
             if idx is None:
                 return Result.fail(f"Transaksi {tx.tx_type} tidak menyimpan slot")
 
-            if tx.promoted_id:                                                      # Kembalikan ke depan antrian
+            if tx.promoted_id:  # Kembalikan ke depan antrian
                 p = self.vehicles.search(tx.promoted_id, by="id")
                 self.slots.release(idx)
                 if p is not None:
@@ -143,19 +160,23 @@ class ParkingSystem:
         return Result.success(f"Undo {tx.tx_type}, {tx.vehicle_id}")
 
     """ View Slots """
+
     def show_slots(self) -> Result[list[tuple[str, str | None]]]:
         slots = [(slot_code(i), self.slots.get(i)) for i in range(self.slots.capacity)]
         return Result.success("Status slot", slots)
 
     """ View Queue """
+
     def show_queue(self) -> Result[list[Vehicle]]:
         return Result.success("Antrean parkir", self.queue.display())
 
     """ View History """
+
     def show_history(self) -> Result[list[HistoryRecord]]:
         return Result.success("Riwayat parkir", self.history.display())
 
     """ Statistics """
+
     def statistics(self) -> Result[dict]:
         occupied = count_occupied(self.slots)
         stats = {
@@ -163,6 +184,6 @@ class ParkingSystem:
             "occupied_slots": occupied,
             "available_slots": self.slots.capacity - occupied,
             "queue_len": self.queue.size,
-            "total_served": self.history.size
+            "total_served": self.history.size,
         }
         return Result.success("Statistik berhasil ditampilkan", stats)

@@ -171,14 +171,13 @@ def _render_vehicles(system: ParkingSystem) -> None:
 
 def _form_registrasi(system: ParkingSystem) -> None:
     with st.form("registrasi", clear_on_submit=True):
-        vehicle_id = st.text_input("ID kendaraan", placeholder="V001", key="reg_id")
+        # vehicle_id = st.text_input("ID kendaraan", placeholder="V001", key="reg_id")
         plate = st.text_input("Plat nomor", placeholder="B 1234 ABC", key="reg_plate")
-        owner = st.text_input("Nama pemilik", placeholder="Romando", key="reg_owner")
+        owner = st.text_input("Nama pemilik", placeholder="Budi Santoso", key="reg_owner")
         vtype = st.selectbox("Tipe kendaraan", VEHICLE_TYPES, key="reg_type")
         if st.form_submit_button("Daftarkan", type="primary"):
             _apply(
                 system.registrasi(
-                    vehicle_id.strip(),
                     plate.strip(),
                     owner.strip(),
                     cast(VehicleType, vtype),

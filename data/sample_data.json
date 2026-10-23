@@ -1,10 +1,10 @@
 [
-  { "vehicle_id": "V001", "plate": "B 1234 ABC", "owner": "Andi Pratama",   "vtype": "MOBIL", "initial_status": "PARKED" },
-  { "vehicle_id": "V002", "plate": "B 5678 DEF", "owner": "Siti Rahma",     "vtype": "MOTOR", "initial_status": "PARKED" },
-  { "vehicle_id": "V003", "plate": "D 9012 GHI", "owner": "Budi Santoso",   "vtype": "MOBIL", "initial_status": "PARKED" },
-  { "vehicle_id": "V004", "plate": "F 3456 JKL", "owner": "Citra Dewi",     "vtype": "MOTOR", "initial_status": "PARKED" },
-  { "vehicle_id": "V005", "plate": "B 7890 MNO", "owner": "Eko Nugroho",    "vtype": "MOBIL", "initial_status": "PARKED" },
-  { "vehicle_id": "V006", "plate": "L 2345 PQR", "owner": "Fitri Handayani","vtype": "MOTOR", "initial_status": "WAITING" },
-  { "vehicle_id": "V007", "plate": "N 6789 STU", "owner": "Gilang Ramadhan","vtype": "MOBIL", "initial_status": "WAITING" },
-  { "vehicle_id": "V008", "plate": "B 1357 VWX", "owner": "Hana Safira",    "vtype": "MOTOR", "initial_status": "REGISTERED" }
+  { "plate": "B 1234 ABC", "owner": "Andi Pratama",    "vtype": "MOBIL", "initial_status": "PARKED" },
+  { "plate": "B 5678 DEF", "owner": "Siti Rahma",      "vtype": "MOTOR", "initial_status": "PARKED" },
+  { "plate": "D 9012 GHI", "owner": "Budi Santoso",    "vtype": "MOBIL", "initial_status": "PARKED" },
+  { "plate": "F 3456 JKL", "owner": "Citra Dewi",      "vtype": "MOTOR", "initial_status": "PARKED" },
+  { "plate": "B 7890 MNO", "owner": "Eko Nugroho",     "vtype": "MOBIL", "initial_status": "PARKED" },
+  { "plate": "L 2345 PQR", "owner": "Fitri Handayani", "vtype": "MOTOR", "initial_status": "WAITING" },
+  { "plate": "N 6789 STU", "owner": "Gilang Ramadhan", "vtype": "MOBIL", "initial_status": "WAITING" },
+  { "plate": "B 1357 VWX", "owner": "Hana Safira",     "vtype": "MOTOR", "initial_status": "REGISTERED" }
 ]
