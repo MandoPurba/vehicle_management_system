@@ -15,6 +15,8 @@ Struktur Data (DS01).
 | Pencarian | Mencari kendaraan berdasarkan plat atau ID |
 | Undo | Membatalkan transaksi terakhir (check-in / antre / check-out) |
 | Laporan | Status slot, isi antrean, riwayat parkir, dan statistik |
+| Reset | Mengosongkan seluruh state sistem |
+| Data contoh | Mengisi sistem dari `data/sample_data.json` sekali klik |
 
 ## Struktur data yang dipakai
 
@@ -35,14 +37,17 @@ Tiap fitur dipetakan ke satu struktur data:
 
 ```
 vehicle_management_system/
-├── app.py              # Entry point aplikasi
+├── app.py              # Entry point Streamlit
 ├── core/
 │   ├── services.py     # ParkingSystem — facade seluruh operasi
+│   ├── sample_data.py  # Pemuat data contoh dari data/sample_data.json
 │   ├── models/         # Vehicle, Transaction, HistoryRecord, Result, konstanta
 │   ├── structures/     # Implementasi struktur data
 │   └── algorithms/     # Algoritma sorting & searching
-├── views/              # Tampilan / antarmuka CLI
-├── data/               # Penyimpanan data
+├── views/
+│   └── parking_ui.py   # Antarmuka Streamlit
+├── data/
+│   └── sample_data.json  # Data contoh untuk demo
 ├── tests/              # Unit test
 └── pyproject.toml
 ```
@@ -58,11 +63,22 @@ Proyek ini memakai [uv](https://docs.astral.sh/uv/) sebagai manajer
 dependensi. Butuh Python 3.12 atau lebih baru.
 
 ```bash
-uv run app.py
+uv run streamlit run app.py
 ```
 
 `uv` otomatis membuat dan menyinkronkan `.venv`, jadi tidak perlu
-mengaktifkan virtual environment secara manual.
+mengaktifkan virtual environment secara manual. Aplikasi terbuka di
+`http://localhost:8501`.
+
+`app.py` harus berada di root project: `streamlit run` menaruh direktori
+skrip di `sys.path`, sehingga skrip yang ditempatkan langsung di `views/`
+tidak bisa mengimpor `core`.
+
+Tombol **Muat data contoh** di sidebar mengisi sistem dari
+`data/sample_data.json`: 5 slot terisi, 2 kendaraan mengantre, 1 terdaftar
+tapi belum masuk. Pemuatan lewat API publik `ParkingSystem`
+(`registrasi()` lalu `check_in()`), jadi state yang terbentuk selalu sah.
+Lihat `data/README.md` untuk format kolomnya.
 
 Menjalankan test:
 
@@ -77,8 +93,9 @@ Proyek masih dalam pengerjaan:
 - [x] Model data (`Vehicle`, `Transaction`, `HistoryRecord`, `Result`) dan konstanta
 - [x] `ParkingSystem`: registrasi, check-in, check-out, pencarian, undo, laporan
 - [x] Struktur data inti: dynamic array, linked list, queue, stack
-- [ ] Antarmuka CLI di `views/`
-- [ ] Persistensi data ke `data/`
+- [x] Antarmuka Streamlit di `views/parking_ui.py`
+- [x] Data contoh di `data/sample_data.json`
+- [ ] Persistensi state ke `data/` (simpan & muat ulang)
 - [ ] Unit test di `tests/`
 
 Rencana pengembangan lanjutan (file-nya sengaja masih kosong):
