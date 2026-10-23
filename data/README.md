@@ -5,11 +5,13 @@
 
 | Kolom | Isi |
 | --- | --- |
-| `vehicle_id` | ID unik kendaraan |
-| `plate` | Plat nomor, juga unik |
+| `plate` | Plat nomor, unik |
 | `owner` | Nama pemilik |
 | `vtype` | `MOBIL` atau `MOTOR` |
 | `initial_status` | Kondisi awal yang diinginkan: `PARKED`, `WAITING`, atau `REGISTERED` |
+
+`vehicle_id` tidak ada di file ini: ID dibuat otomatis oleh
+`ParkingSystem.registrasi()` mengikuti urutan pendaftaran (V001, V002, ...).
 
 `initial_status` bukan nilai yang ditulis langsung ke objek `Vehicle`.
 Loader hanya memanggil `registrasi()` lalu `check_in()` lewat API publik

@@ -15,7 +15,7 @@ from core.services import ParkingSystem
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 DEFAULT_PATH = DATA_DIR / "sample_data.json"
 
-REQUIRED_FIELDS = ("vehicle_id", "plate", "owner", "vtype", "initial_status")
+REQUIRED_FIELDS = ("plate", "owner", "vtype", "initial_status")
 
 
 def read_rows(path: Path | str = DEFAULT_PATH) -> list[dict[str, str]]:
@@ -61,7 +61,6 @@ def load_sample_data(
     for row in rows:
         results.append(
             system.registrasi(
-                row["vehicle_id"],
                 row["plate"],
                 row["owner"],
                 cast(VehicleType, row["vtype"]),
