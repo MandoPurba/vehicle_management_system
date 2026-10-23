@@ -22,12 +22,12 @@ Tiap fitur dipetakan ke satu struktur data:
 
 | Struktur | Modul | Dipakai untuk |
 | --- | --- | --- |
-| Dynamic Array | `core/structures/dynamic_array.py` | `ParkingSlots` — slot parkir berindeks |
-| Linked List | `core/structures/linked_list.py` | `VehicleList` — daftar kendaraan terdaftar |
+| Dynamic Array | `core/structures/dynamic_array.py` | `ParkingSlots` — slot parkir berindeks (`SLOT_CAPACITY` = 5) |
+| Linked List | `core/structures/linked_list.py` | `VehicleList` — daftar kendaraan terdaftar, dan `ParkingHistory` — riwayat parkir |
 | Queue | `core/structures/queue.py` | `WaitingQueue` — antrean saat parkir penuh (FIFO) |
 | Stack | `core/structures/stack.py` | `UndoStack` — riwayat transaksi untuk undo (LIFO) |
 | Hash Table | `core/structures/hash_table.py` | Pencarian kendaraan dalam O(1) |
-| BST | `core/structures/bst.py` | `ParkingHistory` — riwayat terurut waktu |
+| BST | `core/structures/bst.py` | *(rencana)* `ParkingHistory` terurut waktu, menggantikan versi linked list |
 | Heap | `core/structures/heap.py` | Prioritas antrean (mis. kendaraan prioritas) |
 | Graph | `core/structures/graph.py` | Tata letak area parkir / pencarian rute slot |
 
@@ -38,6 +38,7 @@ vehicle_management_system/
 ├── app.py              # Entry point aplikasi
 ├── core/
 │   ├── services.py     # ParkingSystem — facade seluruh operasi
+│   ├── models/         # Vehicle, Transaction, HistoryRecord, Result, konstanta
 │   ├── structures/     # Implementasi struktur data
 │   └── algorithms/     # Algoritma sorting & searching
 ├── views/              # Tampilan / antarmuka CLI
@@ -73,9 +74,17 @@ uv run pytest
 
 Proyek masih dalam pengerjaan:
 
-- [x] Rancangan `ParkingSystem` beserta alur registrasi, check-in, check-out, dan undo
-- [ ] Implementasi modul struktur data di `core/structures/` (masih kosong)
-- [ ] Model data (`Vehicle`, `Transaction`, `HistoryRecord`, `Result`) dan konstanta `SLOT_CAPACITY`
+- [x] Model data (`Vehicle`, `Transaction`, `HistoryRecord`, `Result`) dan konstanta
+- [x] `ParkingSystem`: registrasi, check-in, check-out, pencarian, undo, laporan
+- [x] Struktur data inti: dynamic array, linked list, queue, stack
 - [ ] Antarmuka CLI di `views/`
 - [ ] Persistensi data ke `data/`
-- [ ] Unit test
+- [ ] Unit test di `tests/`
+
+Rencana pengembangan lanjutan (file-nya sengaja masih kosong):
+
+- [ ] `bst.py` — `ParkingHistory` berbasis BST, riwayat urut tanpa sorting
+- [ ] `hash_table.py` — pencarian kendaraan O(1), kini masih O(n) lewat linked list
+- [ ] `heap.py` — antrean berprioritas
+- [ ] `graph.py` — tata letak area parkir
+- [ ] `core/algorithms/` — sorting & searching

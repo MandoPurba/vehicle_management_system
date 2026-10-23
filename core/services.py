@@ -1,5 +1,22 @@
 from datetime import datetime
 
+from core.models import (
+    SLOT_CAPACITY,
+    HistoryRecord,
+    Result,
+    SearchBy,
+    Transaction,
+    Vehicle,
+    VehicleType,
+    count_occupied,
+    slot_code,
+)
+from core.structures.dynamic_array import ParkingSlots
+from core.structures.linked_list import ParkingHistory, VehicleList
+from core.structures.queue import WaitingQueue
+from core.structures.stack import UndoStack
+
+
 class ParkingSystem:
     """ Facede: atau satu pintu untuk seluruh structure data smart Parking."""
 
@@ -48,7 +65,10 @@ class ParkingSystem:
     def check_out(self, vehicle_plate: str) -> Result[Vehicle]:
         v = self.vehicles.search(vehicle_plate, by="plate")
         if v is None or v.status != "PARKED":
-            return Result.fail(f"Kendaraan tidak sedang parkir")
+            return Result.fail("Kendaraan tidak sedang parkir")
+
+        if v.slot_index is None or v.entry_time is None:
+            return Result.fail(f"Data parkir {vehicle_plate} tidak lengkap")
 
         idx = v.slot_index
         self.slots.release(idx)
@@ -59,9 +79,10 @@ class ParkingSystem:
         promoted_vehicle = None
         if not self.queue.is_empty():
             nxt = self.queue.dequeue()
-            self.slots.assign(idx, nxt.vehicle_id)
-            nxt.status, nxt.slot_index, nxt.entry_time = "PARKED", idx, datetime.now()
-            promoted_vehicle = nxt
+            if nxt is not None:
+                self.slots.assign(idx, nxt.vehicle_id)
+                nxt.status, nxt.slot_index, nxt.entry_time = "PARKED", idx, datetime.now()
+                promoted_vehicle = nxt
 
         self.undo.push(Transaction(
             tx_type="CHECK_OUT",
@@ -86,10 +107,16 @@ class ParkingSystem:
         if self.undo.is_empty():
             return Result.fail("Tidak ada transaksi untuk dibatalkan")
         tx = self.undo.pop()
+        if tx is None:
+            return Result.fail("Tidak ada transaksi untuk dibatalkan")
+
         v = self.vehicles.search(tx.vehicle_id, by="id")
+        if v is None:
+            return Result.fail(f"Kendaraan {tx.vehicle_id} tidak ditemukan")
 
         if tx.tx_type == "CHECK_IN":
-            self.slots.release(tx.slot_index)
+            if tx.slot_index is not None:
+                self.slots.release(tx.slot_index)
             v.status, v.slot_index, v.entry_time = "REGISTERED", None, None
 
         elif tx.tx_type == "ENQUEUE":
@@ -98,11 +125,15 @@ class ParkingSystem:
 
         elif tx.tx_type == "CHECK_OUT":
             idx = tx.slot_index
+            if idx is None:
+                return Result.fail(f"Transaksi {tx.tx_type} tidak menyimpan slot")
+
             if tx.promoted_id:                                                      # Kembalikan ke depan antrian
                 p = self.vehicles.search(tx.promoted_id, by="id")
                 self.slots.release(idx)
-                self.queue.push_front(p)
-                p.status, p.slot_index, p.entry_time = "WAITING", None, None
+                if p is not None:
+                    self.queue.push_front(p)
+                    p.status, p.slot_index, p.entry_time = "WAITING", None, None
             record = self.history.remove_last()
             self.slots.assign(idx, v.vehicle_id)
             v.status, v.slot_index = "PARKED", idx
@@ -112,7 +143,7 @@ class ParkingSystem:
         return Result.success(f"Undo {tx.tx_type}, {tx.vehicle_id}")
 
     """ View Slots """
-    def show_slots(self) -> Result[list[tuple[str, Optional[str]]]]:
+    def show_slots(self) -> Result[list[tuple[str, str | None]]]:
         slots = [(slot_code(i), self.slots.get(i)) for i in range(self.slots.capacity)]
         return Result.success("Status slot", slots)
 
