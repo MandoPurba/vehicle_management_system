@@ -28,7 +28,7 @@ Tiap fitur dipetakan ke satu struktur data:
 | Linked List | `core/structures/linked_list.py` | `VehicleList` — daftar kendaraan terdaftar, dan `ParkingHistory` — riwayat parkir |
 | Queue | `core/structures/queue.py` | `WaitingQueue` — antrean saat parkir penuh (FIFO) |
 | Stack | `core/structures/stack.py` | `UndoStack` — riwayat transaksi untuk undo (LIFO) |
-| Hash Table | `core/structures/hash_table.py` | Pencarian kendaraan dalam O(1) |
+| Hash Table | `core/structures/hash_table.py` | Indeks pencarian plat dan id, rata-rata O(1) |
 | BST | `core/structures/bst.py` | *(rencana)* `ParkingHistory` terurut waktu, menggantikan versi linked list |
 | Heap | `core/structures/heap.py` | Prioritas antrean (mis. kendaraan prioritas) |
 | Graph | `core/structures/graph.py` | Tata letak area parkir / pencarian rute slot |
@@ -80,6 +80,12 @@ tapi belum masuk. Pemuatan lewat API publik `ParkingSystem`
 (`registrasi()` lalu `check_in()`), jadi state yang terbentuk selalu sah.
 Lihat `data/README.md` untuk format kolomnya.
 
+Setiap operasi yang mengubah state menulis `data/state.json`. Sesi
+berikutnya membaca file itu dan membangun ulang indeks hash plat serta
+id. `data/sample_data.json` dipakai tombol **Muat data contoh**. Tombol
+**Reset sistem** menulis snapshot kosong. Tombol **Muat ulang dari file**
+menarik snapshot terakhir ke sesi yang sedang berjalan.
+
 Menjalankan test:
 
 ```bash
@@ -95,13 +101,13 @@ Proyek masih dalam pengerjaan:
 - [x] Struktur data inti: dynamic array, linked list, queue, stack
 - [x] Antarmuka Streamlit di `views/parking_ui.py`
 - [x] Data contoh di `data/sample_data.json`
-- [ ] Persistensi state ke `data/` (simpan & muat ulang)
-- [ ] Unit test di `tests/`
+- [x] Persistensi state ke `data/state.json` (simpan & muat ulang)
+- [x] Unit test di `tests/`
 
 Rencana pengembangan lanjutan (file-nya sengaja masih kosong):
 
 - [ ] `bst.py` — `ParkingHistory` berbasis BST, riwayat urut tanpa sorting
-- [ ] `hash_table.py` — pencarian kendaraan O(1), kini masih O(n) lewat linked list
+- [x] `hash_table.py` — pencarian plat dan id rata-rata O(1). Pencarian nama pemilik memindai linked list, O(n)
 - [ ] `heap.py` — antrean berprioritas
 - [ ] `graph.py` — tata letak area parkir
 - [ ] `core/algorithms/` — sorting & searching
