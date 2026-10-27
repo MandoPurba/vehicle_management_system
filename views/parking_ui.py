@@ -19,7 +19,6 @@ from core.models import (
     VehicleType,
     slot_code,
 )
-from core.persistence import STATE_PATH, load_state, save_state
 from core.sample_data import load_sample_data
 from core.services import ParkingSystem
 from core.structures.linked_list import ParkingHistory
@@ -42,28 +41,14 @@ SLOTS_PER_ROW = 5
 # ---- State & util ----
 
 def _system() -> ParkingSystem:
-    """ParkingSystem disimpan di session_state agar bertahan antar-rerun.
-
-    Kalau data/state.json ada, sesi baru membacanya. Hash dibangun ulang
-    dari daftar kendaraan di file itu.
-    """
+    """ParkingSystem disimpan di session_state agar bertahan antar-rerun."""
     if "system" not in st.session_state:
-        if STATE_PATH.is_file():
-            try:
-                st.session_state.system = load_state()
-            except (OSError, ValueError) as exc:
-                st.session_state.system = ParkingSystem(SLOT_CAPACITY)
-                st.session_state.flash = (False, f"State tidak bisa dimuat: {exc}")
-        else:
-            st.session_state.system = ParkingSystem(SLOT_CAPACITY)
+        st.session_state.system = ParkingSystem(SLOT_CAPACITY)
     return st.session_state.system
 
 
 def _apply(result: Result) -> None:
-    """Simpan state ke file, simpan pesan hasil operasi, lalu muat ulang halaman."""
-    system = st.session_state.get("system")
-    if isinstance(system, ParkingSystem):
-        save_state(system)
+    """Simpan pesan hasil operasi, lalu muat ulang halaman."""
     st.session_state.flash = (result.ok, result.message)
     st.rerun()
 
@@ -120,7 +105,7 @@ def _render_slots(system: ParkingSystem) -> None:
                     st.markdown(":green[**Kosong**]")
                     st.caption("&nbsp;", unsafe_allow_html=True)
                     continue
-                vehicle = system.find(occupant_id, by="id")
+                vehicle = system.vehicles.search(occupant_id, by="id")
                 st.markdown(f":red[**{vehicle.plate if vehicle else occupant_id}**]")
                 st.caption(vehicle.owner if vehicle else "-")
 
@@ -265,16 +250,8 @@ def _render_sidebar(system: ParkingSystem) -> None:
         if st.button("Undo transaksi terakhir", key="undo", width="stretch"):
             _apply(system.undo_last())
         if st.button("Reset sistem", key="reset", width="stretch"):
-            st.session_state.system = ParkingSystem(SLOT_CAPACITY)
+            del st.session_state.system
             _apply(Result.success("Sistem direset"))
-
-        if st.button("Muat ulang dari file", key="reload_state", width="stretch"):
-            try:
-                st.session_state.system = load_state()
-            except (OSError, ValueError) as exc:
-                _apply(Result.fail(f"Gagal memuat state: {exc}"))
-            else:
-                _apply(Result.success("State dimuat dari file"))
 
         if st.button("Muat data contoh", key="load_sample", width="stretch"):
             try:

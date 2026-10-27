@@ -26,6 +26,3 @@ htmlcov/
 
 # OS
 .DS_Store
-
-# State parkir yang ditulis saat aplikasi berjalan
-data/state.json
