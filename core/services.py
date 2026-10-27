@@ -12,7 +12,6 @@ from core.models import (
     slot_code,
 )
 from core.structures.dynamic_array import ParkingSlots
-from core.structures.hash_table import HashTable
 from core.structures.linked_list import ParkingHistory, VehicleList
 from core.structures.queue import WaitingQueue
 from core.structures.stack import UndoStack
@@ -24,44 +23,28 @@ class ParkingSystem:
     def __init__(self, capacity: int = SLOT_CAPACITY) -> None:
         self.slots: ParkingSlots = ParkingSlots(capacity)
         self.vehicles: VehicleList = VehicleList()
-        self.by_plate: HashTable[Vehicle] = HashTable()
-        self.by_id: HashTable[Vehicle] = HashTable()
         self.queue: WaitingQueue = WaitingQueue()
         self.undo: UndoStack = UndoStack()
         self.history: ParkingHistory = ParkingHistory()
-
-    def index_vehicle(self, vehicle: Vehicle) -> None:
-        """Catat objek yang sama di indeks plat dan indeks id."""
-        self.by_plate.put(vehicle.plate, vehicle)
-        self.by_id.put(vehicle.vehicle_id, vehicle)
-
-    def find(self, key: str, by: SearchBy = "plate") -> Vehicle | None:
-        """Cari plat atau id lewat hash. Nama pemilik tetap dipindai di list."""
-        if by == "plate":
-            return self.by_plate.get(key)
-        if by == "id":
-            return self.by_id.get(key)
-        return self.vehicles.search(key, by="owner")
 
     """ METHOD: Registrasi"""
 
     def registrasi(self, plate: str, owner: str, vtype: VehicleType) -> Result[Vehicle]:
         if not all([plate, owner, vtype]):
             return Result.fail("Semua field harus diisi")
-        if self.find(plate, by="plate"):
+        if self.vehicles.search(plate, by="plate"):
             return Result.fail("Kendaraan sudah terdaftar")
 
         vehicle_id = f"V{self.vehicles.size + 1:03d}"
-
+        
         v = Vehicle(vehicle_id, plate, owner, vtype)
         self.vehicles.insert(v)
-        self.index_vehicle(v)
         return Result.success(f"{plate} sudah {v.status}", v)
 
     """ METHOD: Check-in """
 
     def check_in(self, vehicle_plate: str) -> Result[Vehicle]:
-        v = self.find(vehicle_plate, by="plate")
+        v = self.vehicles.search(vehicle_plate, by="plate")
         if v is None:
             return Result.fail(f"Kendaraan dengan plat {vehicle_plate} tidak ditemukan")
         if v.status in ("PARKED", "WAITING"):
@@ -84,7 +67,7 @@ class ParkingSystem:
     """ METHOD: Check-out """
 
     def check_out(self, vehicle_plate: str) -> Result[Vehicle]:
-        v = self.find(vehicle_plate, by="plate")
+        v = self.vehicles.search(vehicle_plate, by="plate")
         if v is None or v.status != "PARKED":
             return Result.fail("Kendaraan tidak sedang parkir")
 
@@ -127,7 +110,7 @@ class ParkingSystem:
     """ SEARCH """
 
     def search(self, key: str, by: SearchBy = "plate") -> Result[Vehicle]:
-        v = self.find(key, by)
+        v = self.vehicles.search(key, by)
         return (
             Result.success("Ditemukan", v)
             if v
@@ -144,7 +127,7 @@ class ParkingSystem:
         if tx is None:
             return Result.fail("Tidak ada transaksi untuk dibatalkan")
 
-        v = self.find(tx.vehicle_id, by="id")
+        v = self.vehicles.search(tx.vehicle_id, by="id")
         if v is None:
             return Result.fail(f"Kendaraan {tx.vehicle_id} tidak ditemukan")
 
@@ -163,7 +146,7 @@ class ParkingSystem:
                 return Result.fail(f"Transaksi {tx.tx_type} tidak menyimpan slot")
 
             if tx.promoted_id:  # Kembalikan ke depan antrian
-                p = self.find(tx.promoted_id, by="id")
+                p = self.vehicles.search(tx.promoted_id, by="id")
                 self.slots.release(idx)
                 if p is not None:
                     self.queue.push_front(p)
