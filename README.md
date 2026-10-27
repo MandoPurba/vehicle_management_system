@@ -109,5 +109,5 @@ Rencana pengembangan lanjutan (file-nya sengaja masih kosong):
 - [ ] `bst.py` — `ParkingHistory` berbasis BST, riwayat urut tanpa sorting
 - [x] `hash_table.py` — pencarian plat dan id rata-rata O(1). Pencarian nama pemilik memindai linked list, O(n)
 - [ ] `heap.py` — antrean berprioritas
-- [ ] `graph.py` — tata letak area parkir
+- [-] `graph.py` — tata letak area parkir
 - [ ] `core/algorithms/` — sorting & searching
