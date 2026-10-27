@@ -59,16 +59,33 @@ jadi lapisan `views/` tidak perlu menangani exception.
 
 ## Menjalankan
 
-Proyek ini memakai [uv](https://docs.astral.sh/uv/) sebagai manajer
-dependensi. Butuh Python 3.12 atau lebih baru.
+Butuh Python 3.12 atau lebih baru. Ada dua cara, pilih salah satu.
+
+**Tanpa uv** (cukup `pip`, cocok kalau uv belum terinstall):
+
+```bash
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python app.py
+```
+
+`python app.py` mendeteksi bahwa dirinya belum jalan di bawah
+`streamlit run`, lalu meluncurkan ulang dirinya sendiri lewat CLI
+Streamlit. Jadi tidak perlu mengingat perintah `streamlit run`, dan
+peringatan `missing ScriptRunContext` tidak muncul lagi. Argumen tambahan
+tetap diteruskan, mis. `python app.py --server.port=8600`.
+
+**Dengan uv:**
 
 ```bash
 uv run streamlit run app.py
 ```
 
 `uv` otomatis membuat dan menyinkronkan `.venv`, jadi tidak perlu
-mengaktifkan virtual environment secara manual. Aplikasi terbuka di
-`http://localhost:8501`.
+mengaktifkan virtual environment secara manual.
+
+Aplikasi terbuka di `http://localhost:8501`.
 
 `app.py` harus berada di root project: `streamlit run` menaruh direktori
 skrip di `sys.path`, sehingga skrip yang ditempatkan langsung di `views/`
@@ -89,7 +106,8 @@ menarik snapshot terakhir ke sesi yang sedang berjalan.
 Menjalankan test:
 
 ```bash
-uv run pytest
+python -m pytest        # butuh `pip install pytest` dulu
+uv run pytest           # kalau pakai uv
 ```
 
 ## Status pengembangan
