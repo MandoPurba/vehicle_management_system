@@ -1,7 +1,9 @@
 """Simpan dan muat seluruh state parkir ke data/state.json.
 
-Hash table tidak ditulis ke file. Saat muat, indeks plat dan id dibangun
-ulang dari daftar kendaraan, dan objek yang sama dipakai antrean serta slot.
+Hash table dan bentuk pohon riwayat tidak ditulis ke file. Saat muat,
+indeks plat dan id dibangun ulang dari daftar kendaraan, objek yang sama
+dipakai antrean serta slot, dan riwayat disisipkan ulang satu per satu ke
+HistoryTree.
 """
 
 import json
@@ -18,7 +20,6 @@ from core.models import (
     VehicleType,
 )
 from core.services import ParkingSystem
-from core.structures.linked_list import HistoryNode
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 STATE_PATH = DATA_DIR / "state.json"
@@ -47,20 +48,18 @@ def _require_text(row: dict, field: str, label: str) -> str:
 
 def snapshot(system: ParkingSystem) -> dict:
     """Salinan state yang aman ditulis ke JSON."""
-    history: list[dict] = []
-    node: HistoryNode | None = system.history.head
-    while node is not None:
-        record = node.data
-        history.append(
-            {
-                "vehicle_id": record.vehicle_id,
-                "plate": record.plate,
-                "slot_code": record.slot_code,
-                "entry_time": _dump_time(record.entry_time),
-                "exit_time": _dump_time(record.exit_time),
-            }
-        )
-        node = node.next
+    # Iterasi HistoryTree sudah in-order, jadi riwayatnya tertulis urut
+    # waktu keluar dari yang paling lama tanpa perlu disortir.
+    history: list[dict] = [
+        {
+            "vehicle_id": record.vehicle_id,
+            "plate": record.plate,
+            "slot_code": record.slot_code,
+            "entry_time": _dump_time(record.entry_time),
+            "exit_time": _dump_time(record.exit_time),
+        }
+        for record in system.history
+    ]
 
     undo_oldest_first = reversed(list(system.undo))
     return {

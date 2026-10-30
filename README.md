@@ -14,7 +14,7 @@ Struktur Data (DS01).
 | Check-out | Mengosongkan slot, mencatat riwayat, lalu menaikkan kendaraan dari antrean |
 | Pencarian | Mencari kendaraan berdasarkan plat atau ID |
 | Undo | Membatalkan transaksi terakhir (check-in / antre / check-out) |
-| Laporan | Status slot, isi antrean, riwayat parkir, dan statistik |
+| Laporan | Status slot, isi antrean, riwayat parkir (urut waktu lewat BST), dan statistik |
 | Ubah jumlah slot | Memperbesar atau memperkecil parkiran saat aplikasi jalan |
 | Reset | Mengosongkan seluruh state sistem, jumlah slot tetap |
 | Data contoh | Mengisi sistem dari `data/sample_data.json` sekali klik |
@@ -26,11 +26,11 @@ Tiap fitur dipetakan ke satu struktur data:
 | Struktur | Modul | Dipakai untuk |
 | --- | --- | --- |
 | Dynamic Array | `core/structures/dynamic_array.py` | `ParkingSlots` — slot parkir berindeks (awalnya `SLOT_CAPACITY` = 5, bisa di-resize) |
-| Linked List | `core/structures/linked_list.py` | `VehicleList` — daftar kendaraan terdaftar, dan `ParkingHistory` — riwayat parkir |
+| Linked List | `core/structures/linked_list.py` | `VehicleList` — daftar kendaraan terdaftar. `ParkingHistory` masih ada sebagai pembanding, tapi riwayat kini dipegang BST |
 | Queue | `core/structures/queue.py` | `WaitingQueue` — antrean saat parkir penuh (FIFO) |
 | Stack | `core/structures/stack.py` | `UndoStack` — riwayat transaksi untuk undo (LIFO) |
 | Hash Table | `core/structures/hash_table.py` | Indeks pencarian plat dan id, rata-rata O(1) |
-| BST | `core/structures/bst.py` | `BST` — binary search tree, dan `HistoryTree` — riwayat parkir terurut waktu keluar tanpa sorting |
+| BST | `core/structures/bst.py` | `BST` — binary search tree, dan `HistoryTree` — riwayat parkir (`ParkingSystem.history`) terurut waktu keluar tanpa sorting |
 | Heap | `core/structures/heap.py` | Prioritas antrean (mis. kendaraan prioritas) |
 | Graph | `core/structures/graph.py` | Tata letak area parkir / pencarian rute slot |
 
@@ -57,6 +57,29 @@ Inti logika ada di `ParkingSystem` (`core/services.py`), sebuah *facade*
 yang menjadi satu pintu ke semua struktur data di atas. Setiap method
 mengembalikan objek `Result` berisi status berhasil/gagal beserta pesannya,
 jadi lapisan `views/` tidak perlu menangani exception.
+
+### Riwayat parkir memakai BST
+
+`ParkingSystem.history` adalah `HistoryTree`, binary search tree berkunci
+`(exit_time, vehicle_id)`. `vehicle_id` ada di kunci untuk memutus seri:
+dua check-out bisa tercatat pada waktu yang sama, dan kalau kuncinya
+hanya `exit_time`, catatan yang satu akan menimpa yang lain.
+
+Yang didapat dari BST:
+
+- Jelajah in-order mengeluarkan riwayat urut waktu keluar tanpa pernah
+  memanggil sort, jadi `data/state.json` dan tabel di UI langsung urut.
+- `between(start, end)` menjawab pertanyaan rentang waktu tanpa memindai
+  seluruh catatan — subpohon yang kuncinya di luar rentang tidak
+  dikunjungi. Ini yang tidak bisa dilakukan linked list.
+- `remove_last()` membuang simpul paling kanan, dipakai undo check-out.
+
+Satu hal yang perlu diakui: `BST` di sini tidak menyeimbangkan diri, dan
+riwayat parkir lahir urut waktu. Tiap catatan baru selalu jatuh ke kanan,
+jadi pohonnya merosot menjadi rantai — diukur dengan 7 catatan, tingginya
+7, sama saja dengan linked list. Keuntungan BST di proyek ini ada di
+`between()` dan pada riwayat yang disisipkan tidak berurutan, bukan pada
+tinggi pohon. Penyeimbangan (AVL/red-black) adalah langkah lanjutannya.
 
 ## Menjalankan
 
@@ -137,8 +160,8 @@ Proyek masih dalam pengerjaan:
 
 Rencana pengembangan lanjutan (file-nya sengaja masih kosong):
 
-- [x] `bst.py` — `BST` dan `HistoryTree`, riwayat urut tanpa sorting. Belum dipasang
-      di `ParkingSystem`; `ParkingHistory` versi linked list masih yang dipakai
+- [x] `bst.py` — `BST` dan `HistoryTree`, riwayat urut tanpa sorting, sudah
+      dipasang sebagai `ParkingSystem.history`
 - [x] `hash_table.py` — pencarian plat dan id rata-rata O(1). Pencarian nama pemilik memindai linked list, O(n)
 - [ ] `heap.py` — antrean berprioritas
 - [ ] `graph.py` — tata letak area parkir

@@ -4,7 +4,6 @@ Lapisan ini hanya memanggil ParkingSystem lalu menampilkan isi Result.
 Semua logika parkir tetap di core/services.py.
 """
 
-from collections.abc import Iterator
 from datetime import datetime
 from typing import cast
 
@@ -24,7 +23,6 @@ from core.models import (
 from core.persistence import STATE_PATH, load_state, save_state
 from core.sample_data import load_sample_data
 from core.services import ParkingSystem
-from core.structures.linked_list import ParkingHistory
 
 VEHICLE_TYPES: tuple[VehicleType, ...] = ("MOBIL", "MOTOR")
 SEARCH_LABELS: dict[str, str] = {
@@ -79,18 +77,6 @@ def _render_flash() -> None:
     st.success(message) if ok else st.error(message)
 
 
-def _history_records(history: ParkingHistory) -> Iterator[HistoryRecord]:
-    """Baca isi ParkingHistory langsung lewat simpulnya.
-
-    ParkingHistory.display() mencetak ke stdout dan mengembalikan None,
-    jadi tidak bisa dipakai untuk mengisi tabel.
-    """
-    node = history.head
-    while node is not None:
-        yield node.data
-        node = node.next
-
-
 def _clock(moment: datetime | None) -> str:
     return moment.strftime("%H:%M:%S") if moment else "-"
 
@@ -143,7 +129,10 @@ def _render_queue(system: ParkingSystem) -> None:
 
 
 def _render_history(system: ParkingSystem) -> None:
-    records = list(_history_records(system.history))
+    # show_history() mengembalikan hasil in-order HistoryTree: urut waktu
+    # keluar dari yang paling lama. Tabel ini membalikkannya supaya
+    # check-out terbaru ada di baris atas.
+    records: list[HistoryRecord] = system.show_history().data or []
     if not records:
         st.caption("Belum ada riwayat parkir.")
         return

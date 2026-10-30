@@ -1,5 +1,5 @@
+from core.structures.bst import HistoryTree
 from core.structures.dynamic_array import ParkingSlots
-from core.structures.linked_list import ParkingHistory
 from core.structures.queue import WaitingQueue
 
 
@@ -16,7 +16,7 @@ def count_occupied(slots: ParkingSlots, i: int = 0) -> int:
     return is_filled + count_occupied(slots, i + 1)
 
 
-def show_statistics(slots: ParkingSlots, queue: WaitingQueue, history: ParkingHistory) -> None:
+def show_statistics(slots: ParkingSlots, queue: WaitingQueue, history: HistoryTree) -> None:
     """Total slot, terisi, tersedia, jumlah queue, total dilayani (history.size)."""
     total_slots = slots.capacity
     occupied_slots = count_occupied(slots, 0)  # Memanggil fungsi rekursif

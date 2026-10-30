@@ -228,3 +228,65 @@ def test_antarmuka_sama_dengan_parking_history() -> None:
     for nama in dipakai_parking_system:
         assert hasattr(ParkingHistory(), nama)
         assert hasattr(HistoryTree(), nama)
+
+
+# ---- HistoryTree terpasang di ParkingSystem ----
+
+def test_show_history_mengembalikan_daftar_bukan_none() -> None:
+    """ParkingHistory.display() mencetak ke stdout dan mengembalikan None,
+    sehingga show_history().data selalu None. HistoryTree memperbaikinya."""
+    from core.services import ParkingSystem
+
+    system = ParkingSystem(capacity=2)
+    for plat in ("B 1 AAA", "B 2 BBB"):
+        system.registrasi(plat, "Ani", "MOBIL")
+        system.check_in(plat)
+    system.check_out("B 1 AAA")
+
+    hasil = system.show_history()
+
+    assert hasil.ok
+    assert hasil.data is not None
+    assert [r.plate for r in hasil.data] == ["B 1 AAA"]
+
+
+def test_riwayat_sistem_urut_waktu_dan_undo_membuang_yang_terbaru() -> None:
+    from core.services import ParkingSystem
+
+    system = ParkingSystem(capacity=3)
+    for plat in ("B 1 AAA", "B 2 BBB", "B 3 CCC"):
+        system.registrasi(plat, "Ani", "MOBIL")
+        system.check_in(plat)
+    system.check_out("B 1 AAA")
+    system.check_out("B 2 BBB")
+    system.check_out("B 3 CCC")
+
+    assert [r.plate for r in system.history] == ["B 1 AAA", "B 2 BBB", "B 3 CCC"]
+    assert system.statistics().data is not None
+    assert system.statistics().data["total_served"] == 3
+
+    assert system.undo_last().ok  # undo check-out B 3 CCC
+
+    assert [r.plate for r in system.history] == ["B 1 AAA", "B 2 BBB"]
+    kembali = system.find("B 3 CCC")
+    assert kembali is not None and kembali.status == "PARKED"
+
+
+def test_riwayat_bertahan_lewat_simpan_muat(tmp_path) -> None:
+    from core.persistence import load_state, save_state
+    from core.services import ParkingSystem
+
+    system = ParkingSystem(capacity=2)
+    for plat in ("B 1 AAA", "B 2 BBB"):
+        system.registrasi(plat, "Ani", "MOBIL")
+        system.check_in(plat)
+    system.check_out("B 1 AAA")
+    system.check_out("B 2 BBB")
+
+    path = tmp_path / "state.json"
+    save_state(system, path)
+    dimuat = load_state(path)
+
+    assert [r.plate for r in dimuat.history] == ["B 1 AAA", "B 2 BBB"]
+    assert dimuat.history.size == 2
+    assert isinstance(dimuat.history.display(), list)

@@ -4,7 +4,7 @@ from datetime import datetime
 
 @dataclass
 class HistoryRecord:
-    """Satu entri di ParkingHistory (dibuat saat check-out)."""
+    """Satu entri di HistoryTree (dibuat saat check-out)."""
     vehicle_id: str
     plate: str
     slot_code: str

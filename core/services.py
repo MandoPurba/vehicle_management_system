@@ -13,9 +13,10 @@ from core.models import (
     count_occupied,
     slot_code,
 )
+from core.structures.bst import HistoryTree
 from core.structures.dynamic_array import ParkingSlots
 from core.structures.hash_table import HashTable
-from core.structures.linked_list import ParkingHistory, VehicleList
+from core.structures.linked_list import VehicleList
 from core.structures.queue import WaitingQueue
 from core.structures.stack import UndoStack
 
@@ -30,7 +31,7 @@ class ParkingSystem:
         self.by_id: HashTable[Vehicle] = HashTable()
         self.queue: WaitingQueue = WaitingQueue()
         self.undo: UndoStack = UndoStack()
-        self.history: ParkingHistory = ParkingHistory()
+        self.history: HistoryTree = HistoryTree()
 
     def index_vehicle(self, vehicle: Vehicle) -> None:
         """Catat objek yang sama di indeks plat dan indeks id."""
@@ -263,6 +264,7 @@ class ParkingSystem:
     """ View History """
 
     def show_history(self) -> Result[list[HistoryRecord]]:
+        """Riwayat check-out, lama ke baru. Urutannya datang dari in-order BST."""
         return Result.success("Riwayat parkir", self.history.display())
 
     """ Statistics """

@@ -267,9 +267,11 @@ class HistoryTree:
     seri itu, dan urutan waktunya tetap yang menentukan karena elemen
     pertama tuple dibandingkan lebih dulu.
 
-    Antarmukanya dibuat sama dengan `ParkingHistory` (`add`,
-    `remove_last`, `size`, `display`) supaya bisa ditukar tanpa mengubah
-    `ParkingSystem`, ditambah `between()` untuk pertanyaan rentang waktu.
+    Inilah riwayat yang dipakai `ParkingSystem.history`. Antarmukanya
+    sengaja sama dengan `ParkingHistory` versi linked list (`add`,
+    `remove_last`, `size`, `display`) sehingga pertukarannya tidak
+    mengubah satu pun pemanggilan di `ParkingSystem`, ditambah
+    `between()` untuk pertanyaan rentang waktu.
     """
 
     def __init__(self) -> None:
