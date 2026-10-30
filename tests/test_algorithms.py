@@ -92,6 +92,12 @@ def test_urut_riwayat_menurut_waktu_durasi_dan_biaya() -> None:
     assert [r.plate for r in sort_history(riwayat, "plate")] == ["B 1 AAA", "B 2 BBB", "B 3 CCC"]
     menurun = sort_history(riwayat, "cost", descending=True)
     assert menurun[0].plate == "B 2 BBB"
+    for algo in ("merge", "quick", "insertion", "bubble"):
+        assert [r.plate for r in sort_history(riwayat, "cost", algorithm=algo)] == [
+            "B 1 AAA",
+            "B 3 CCC",
+            "B 2 BBB",
+        ]
 
 
 def test_cari_riwayat_lewat_binary_search() -> None:
