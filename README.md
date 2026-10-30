@@ -15,7 +15,8 @@ Struktur Data (DS01).
 | Pencarian | Mencari kendaraan berdasarkan plat atau ID |
 | Undo | Membatalkan transaksi terakhir (check-in / antre / check-out) |
 | Laporan | Status slot, isi antrean, riwayat parkir, dan statistik |
-| Reset | Mengosongkan seluruh state sistem |
+| Ubah jumlah slot | Memperbesar atau memperkecil parkiran saat aplikasi jalan |
+| Reset | Mengosongkan seluruh state sistem, jumlah slot tetap |
 | Data contoh | Mengisi sistem dari `data/sample_data.json` sekali klik |
 
 ## Struktur data yang dipakai
@@ -24,7 +25,7 @@ Tiap fitur dipetakan ke satu struktur data:
 
 | Struktur | Modul | Dipakai untuk |
 | --- | --- | --- |
-| Dynamic Array | `core/structures/dynamic_array.py` | `ParkingSlots` — slot parkir berindeks (`SLOT_CAPACITY` = 5) |
+| Dynamic Array | `core/structures/dynamic_array.py` | `ParkingSlots` — slot parkir berindeks (awalnya `SLOT_CAPACITY` = 5, bisa di-resize) |
 | Linked List | `core/structures/linked_list.py` | `VehicleList` — daftar kendaraan terdaftar, dan `ParkingHistory` — riwayat parkir |
 | Queue | `core/structures/queue.py` | `WaitingQueue` — antrean saat parkir penuh (FIFO) |
 | Stack | `core/structures/stack.py` | `UndoStack` — riwayat transaksi untuk undo (LIFO) |
@@ -92,16 +93,27 @@ skrip di `sys.path`, sehingga skrip yang ditempatkan langsung di `views/`
 tidak bisa mengimpor `core`.
 
 Tombol **Muat data contoh** di sidebar mengisi sistem dari
-`data/sample_data.json`: 5 slot terisi, 2 kendaraan mengantre, 1 terdaftar
-tapi belum masuk. Pemuatan lewat API publik `ParkingSystem`
-(`registrasi()` lalu `check_in()`), jadi state yang terbentuk selalu sah.
-Lihat `data/README.md` untuk format kolomnya.
+`data/sample_data.json`: 24 kendaraan, 5 langsung mengisi slot, 2
+mengantre, dan 17 sisanya terdaftar tapi belum masuk. Pemuatan lewat API
+publik `ParkingSystem` (`registrasi()` lalu `check_in()`), jadi state yang
+terbentuk selalu sah. Lihat `data/README.md` untuk format kolomnya.
 
-Setiap operasi yang mengubah state menulis `data/state.json`. Sesi
-berikutnya membaca file itu dan membangun ulang indeks hash plat serta
-id. `data/sample_data.json` dipakai tombol **Muat data contoh**. Tombol
-**Reset sistem** menulis snapshot kosong. Tombol **Muat ulang dari file**
-menarik snapshot terakhir ke sesi yang sedang berjalan.
+Panel **Jumlah slot** di sidebar mengubah kapasitas parkiran tanpa
+mengulang dari nol:
+
+- Diperbesar — slot baru muncul kosong, lalu langsung diisi kendaraan
+  paling depan di antrean sampai antrean habis.
+- Diperkecil — hanya boleh kalau slot yang dibuang sudah kosong. Kalau
+  masih ada penghuninya, operasinya ditolak beserta kode slotnya, jadi
+  tidak ada kendaraan yang hilang dari slot.
+- Tumpukan undo dikosongkan tiap kali kapasitas berubah: transaksi di
+  dalamnya menyimpan indeks slot, dan indeks itu bisa menunjuk slot yang
+  sudah tidak ada lagi.
+
+Setiap operasi yang mengubah state menulis `data/state.json`, termasuk
+jumlah slotnya. Sesi berikutnya membaca file itu dan membangun ulang
+indeks hash plat serta id. Tombol **Reset sistem** menulis snapshot
+kosong dengan jumlah slot yang sedang dipakai.
 
 Menjalankan test:
 
@@ -116,6 +128,7 @@ Proyek masih dalam pengerjaan:
 
 - [x] Model data (`Vehicle`, `Transaction`, `HistoryRecord`, `Result`) dan konstanta
 - [x] `ParkingSystem`: registrasi, check-in, check-out, pencarian, undo, laporan
+- [x] Ubah jumlah slot saat aplikasi jalan (`resize_slots()`)
 - [x] Struktur data inti: dynamic array, linked list, queue, stack
 - [x] Antarmuka Streamlit di `views/parking_ui.py`
 - [x] Data contoh di `data/sample_data.json`
