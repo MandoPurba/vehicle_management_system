@@ -10,6 +10,8 @@ SearchBy = Literal["id", "plate", "owner"]
 VehicleType = Literal["MOTOR", "MOBIL"]
 
 SLOT_CAPACITY: int = 5  # A01-A05, kecil agar kondisi penuh mudah didemokan
+MIN_SLOT_CAPACITY: int = 1  # satu slot pun masih sistem parkir yang sah
+MAX_SLOT_CAPACITY: int = 60  # batas atas agar grid slot di UI tetap terbaca
 
 def slot_code(idx: int) -> str:
     """0 -> 'A01', 4 -> 'A05'."""
@@ -29,6 +31,8 @@ from core.models.transaction import Transaction
 from core.models.vehicle import Vehicle
 
 __all__ = [
+    "MAX_SLOT_CAPACITY",
+    "MIN_SLOT_CAPACITY",
     "SLOT_CAPACITY",
     "HistoryRecord",
     "Result",

@@ -51,6 +51,20 @@ class DynamicArray:
             raise IndexError(f"Indeks {index} di luar jangkauan")
         self._buffer[index] = value
 
+    def pop(self):
+        """Buang elemen terakhir, kembalikan isinya. O(1).
+
+        Buffer fisik tidak dikecilkan, hanya panjang logisnya yang turun,
+        sama seperti list Python. Slot yang dilepas dikosongkan supaya
+        tidak menahan referensi ke objek yang sudah dibuang.
+        """
+        if self._size == 0:
+            raise IndexError("Array kosong")
+        self._size -= 1
+        value = self._buffer[self._size]
+        self._buffer[self._size] = None
+        return value
+
 
 class ParkingSlots:
     """Slot parkir berindeks tetap. Tiap slot berisi vehicle_id atau None.
@@ -87,6 +101,20 @@ class ParkingSlots:
     def release(self, index: int) -> None:
         """Kosongkan slot."""
         self._array.set(index, None)
+
+    def resize(self, new_capacity: int) -> None:
+        """Ubah jumlah slot parkir.
+
+        Diperbesar: slot baru ditambahkan di ekor dalam keadaan kosong.
+        Diperkecil: slot di ekor dibuang. Pemanggil yang memastikan slot
+        itu sudah kosong, di sini tidak ada pemeriksaan penghuni.
+        """
+        if new_capacity < 1:
+            raise ValueError("Jumlah slot minimal 1")
+        while self.capacity < new_capacity:
+            self._array.append(None)
+        while self.capacity > new_capacity:
+            self._array.pop()
 
     def is_full(self) -> bool:
         return self.find_available() == -1

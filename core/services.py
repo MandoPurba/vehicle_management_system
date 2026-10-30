@@ -1,6 +1,8 @@
 from datetime import datetime
 
 from core.models import (
+    MAX_SLOT_CAPACITY,
+    MIN_SLOT_CAPACITY,
     SLOT_CAPACITY,
     HistoryRecord,
     Result,
@@ -123,6 +125,77 @@ class ParkingSystem:
         if promoted_vehicle:
             msg += f", {promoted_vehicle.plate} naik dari antrean"
         return Result.success(msg, v)
+
+    """ METHOD: Ubah jumlah slot """
+
+    def resize_slots(self, new_capacity: int) -> Result[dict]:
+        """Ubah jumlah slot parkir tanpa kehilangan kendaraan yang terdaftar.
+
+        Diperbesar: slot baru langsung diisi kendaraan paling depan di
+        antrean, sampai antrean habis atau slot baru penuh.
+        Diperkecil: ditolak kalau slot yang akan dibuang masih ada
+        penghuninya, jadi tidak ada kendaraan yang hilang dari slot.
+
+        Tumpukan undo dikosongkan: transaksi di dalamnya menyimpan indeks
+        slot, dan indeks itu bisa menunjuk slot yang sudah tidak ada lagi
+        setelah kapasitas berubah.
+        """
+        if new_capacity < MIN_SLOT_CAPACITY:
+            return Result.fail(f"Jumlah slot minimal {MIN_SLOT_CAPACITY}")
+        if new_capacity > MAX_SLOT_CAPACITY:
+            return Result.fail(f"Jumlah slot maksimal {MAX_SLOT_CAPACITY}")
+
+        old_capacity = self.slots.capacity
+        if new_capacity == old_capacity:
+            return Result.fail(f"Jumlah slot sudah {old_capacity}")
+
+        if new_capacity < old_capacity:
+            terisi = [
+                slot_code(i)
+                for i in range(new_capacity, old_capacity)
+                if self.slots.get(i) is not None
+            ]
+            if terisi:
+                # Pesannya cuma menyebut beberapa slot pertama; kalau yang
+                # terisi banyak, daftar lengkapnya malah tidak terbaca.
+                disebut = ", ".join(terisi[:5])
+                if len(terisi) > 5:
+                    disebut += f", dan {len(terisi) - 5} slot lain"
+                return Result.fail(
+                    f"Slot {disebut} masih terisi, check-out dulu "
+                    f"sebelum mengurangi jumlah slot"
+                )
+
+        self.slots.resize(new_capacity)
+        self.undo.clear()
+        promoted = self._fill_from_queue()
+
+        msg = f"Jumlah slot {old_capacity} menjadi {new_capacity}"
+        if promoted:
+            msg += f", {len(promoted)} kendaraan naik dari antrean"
+        return Result.success(
+            msg,
+            {
+                "capacity": new_capacity,
+                "previous_capacity": old_capacity,
+                "promoted": [v.plate for v in promoted],
+            },
+        )
+
+    def _fill_from_queue(self) -> list[Vehicle]:
+        """Isi setiap slot kosong dengan kendaraan terdepan di antrean."""
+        promoted: list[Vehicle] = []
+        while not self.queue.is_empty():
+            idx = self.slots.find_available()
+            if idx == -1:
+                break
+            v = self.queue.dequeue()
+            if v is None:
+                break
+            self.slots.assign(idx, v.vehicle_id)
+            v.status, v.slot_index, v.entry_time = "PARKED", idx, datetime.now()
+            promoted.append(v)
+        return promoted
 
     """ SEARCH """
 

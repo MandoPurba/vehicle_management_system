@@ -11,6 +11,8 @@ from typing import cast
 import streamlit as st
 
 from core.models import (
+    MAX_SLOT_CAPACITY,
+    MIN_SLOT_CAPACITY,
     SLOT_CAPACITY,
     HistoryRecord,
     Result,
@@ -259,22 +261,40 @@ def _form_search(system: ParkingSystem) -> None:
     st.caption(f"ID {found.vehicle_id} · {found.owner} · {found.vtype} · masuk {_clock(found.entry_time)}")
 
 
+def _form_resize(system: ParkingSystem) -> None:
+    """Ubah jumlah slot parkir.
+
+    Dalam st.form supaya angkanya bisa diutak-atik dulu tanpa memicu
+    rerun, dan parkiran baru berubah saat tombol ditekan.
+    """
+    with st.form("resize"):
+        st.subheader("Jumlah slot")
+        capacity = st.number_input(
+            "Slot parkir",
+            min_value=MIN_SLOT_CAPACITY,
+            max_value=MAX_SLOT_CAPACITY,
+            value=system.slots.capacity,
+            step=1,
+            key="resize_capacity",
+            help=(
+                "Slot tambahan langsung dipakai kendaraan yang mengantre. "
+                "Untuk mengurangi slot, slot di ekor harus kosong dulu."
+            ),
+        )
+        if st.form_submit_button("Terapkan", width="stretch"):
+            _apply(system.resize_slots(int(capacity)))
+
+
 def _render_sidebar(system: ParkingSystem) -> None:
     with st.sidebar:
         st.header("Kontrol")
         if st.button("Undo transaksi terakhir", key="undo", width="stretch"):
             _apply(system.undo_last())
         if st.button("Reset sistem", key="reset", width="stretch"):
-            st.session_state.system = ParkingSystem(SLOT_CAPACITY)
+            # Jumlah slot ikut terbawa: kapasitas adalah bentuk parkirannya,
+            # bukan data yang dibuang bersama kendaraan.
+            st.session_state.system = ParkingSystem(system.slots.capacity)
             _apply(Result.success("Sistem direset"))
-
-        if st.button("Muat ulang dari file", key="reload_state", width="stretch"):
-            try:
-                st.session_state.system = load_state()
-            except (OSError, ValueError) as exc:
-                _apply(Result.fail(f"Gagal memuat state: {exc}"))
-            else:
-                _apply(Result.success("State dimuat dari file"))
 
         if st.button("Muat data contoh", key="load_sample", width="stretch"):
             try:
@@ -288,6 +308,9 @@ def _render_sidebar(system: ParkingSystem) -> None:
                     if berhasil
                     else Result.fail("Data contoh sudah dimuat sebelumnya")
                 )
+
+        st.divider()
+        _form_resize(system)
 
         st.divider()
         st.caption(

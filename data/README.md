@@ -20,22 +20,28 @@ sisanya otomatis masuk antrean.
 Karena itu **urutan baris menentukan hasil** — baris `PARKED` harus
 berada di atas baris `WAITING`.
 
-Dengan `SLOT_CAPACITY = 5`, data contoh ini menghasilkan 5 slot terisi,
-2 kendaraan mengantre, dan 1 kendaraan terdaftar tapi belum masuk.
+Isinya 24 baris: 5 `PARKED`, 2 `WAITING`, dan 17 `REGISTERED`. Dengan
+`SLOT_CAPACITY = 5`, hasilnya 5 slot terisi, 2 kendaraan mengantre, dan 17
+kendaraan terdaftar tapi belum masuk. Mayoritas `REGISTERED` disengaja:
+kendaraannya jadi bahan untuk mencoba check-in satu-satu, dan untuk
+melihat efek **Jumlah slot** di sidebar — perbesar slotnya, lalu check-in
+sisa kendaraan sampai antrean terbentuk lagi.
 
 ## State berjalan
 
 `state.json` menyimpan kondisi sistem saat aplikasi berjalan: kendaraan
 terdaftar, isi slot, antrean, riwayat check-out, dan tumpukan undo.
 Aplikasi menulis file ini setelah registrasi, check-in, check-out, undo,
-muat data contoh, dan reset. File ini berada di `.gitignore`.
+ubah jumlah slot, muat data contoh, dan reset. File ini berada di
+`.gitignore`.
 
 Isinya:
 
 | Bagian | Isi |
 | --- | --- |
 | `vehicles` | Seluruh kendaraan terdaftar, berurutan, beserta status dan waktu masuk |
-| `slots` | Penghuni `A01`–`A05`, id kendaraan atau `null` |
+| `capacity` | Jumlah slot parkir saat disimpan, bisa diubah dari sidebar |
+| `slots` | Penghuni `A01`–`A0n`, id kendaraan atau `null`, sebanyak `capacity` |
 | `queue` | Id antrean dari depan ke belakang |
 | `history` | Riwayat check-out dari yang paling lama |
 | `undo` | Transaksi dari yang paling lama ke yang paling baru |

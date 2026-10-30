@@ -57,6 +57,11 @@ class UndoStack:
         """Lihat transaksi terakhir tanpa mengambilnya."""
         return self._top.value if self._top else None
 
+    def clear(self) -> None:
+        """Buang seluruh transaksi. O(1), sisa rantai diurus garbage collector."""
+        self._top = None
+        self._size = 0
+
     def display(self) -> list[Transaction]:
         """Isi tumpukan dari yang terbaru ke terlama."""
         return list(self)
