@@ -1,10 +1,12 @@
 from datetime import datetime
 
 from core.models import (
+    DEFAULT_PRIORITY,
     MAX_SLOT_CAPACITY,
     MIN_SLOT_CAPACITY,
     SLOT_CAPACITY,
     HistoryRecord,
+    Priority,
     Result,
     SearchBy,
     Transaction,
@@ -13,10 +15,11 @@ from core.models import (
     count_occupied,
     slot_code,
 )
+from core.structures.bst import HistoryTree, OrderBy, VehicleTree
 from core.structures.dynamic_array import ParkingSlots
 from core.structures.hash_table import HashTable
-from core.structures.linked_list import ParkingHistory, VehicleList
-from core.structures.queue import WaitingQueue
+from core.structures.heap import PriorityWaitingQueue
+from core.structures.linked_list import VehicleList
 from core.structures.stack import UndoStack
 
 
@@ -28,14 +31,16 @@ class ParkingSystem:
         self.vehicles: VehicleList = VehicleList()
         self.by_plate: HashTable[Vehicle] = HashTable()
         self.by_id: HashTable[Vehicle] = HashTable()
-        self.queue: WaitingQueue = WaitingQueue()
+        self.queue: PriorityWaitingQueue = PriorityWaitingQueue()
         self.undo: UndoStack = UndoStack()
-        self.history: ParkingHistory = ParkingHistory()
+        self.history: HistoryTree = HistoryTree()
+        self.vehicle_tree: VehicleTree = VehicleTree("plate")
 
     def index_vehicle(self, vehicle: Vehicle) -> None:
-        """Catat objek yang sama di indeks plat dan indeks id."""
+        """Catat objek yang sama di indeks plat, indeks id, dan pohon urut."""
         self.by_plate.put(vehicle.plate, vehicle)
         self.by_id.put(vehicle.vehicle_id, vehicle)
+        self.vehicle_tree.add(vehicle)
 
     def find(self, key: str, by: SearchBy = "plate") -> Vehicle | None:
         """Cari plat atau id lewat hash. Nama pemilik tetap dipindai di list."""
@@ -47,7 +52,13 @@ class ParkingSystem:
 
     """ METHOD: Registrasi"""
 
-    def registrasi(self, plate: str, owner: str, vtype: VehicleType) -> Result[Vehicle]:
+    def registrasi(
+        self,
+        plate: str,
+        owner: str,
+        vtype: VehicleType,
+        priority: Priority = DEFAULT_PRIORITY,
+    ) -> Result[Vehicle]:
         if not all([plate, owner, vtype]):
             return Result.fail("Semua field harus diisi")
         if self.find(plate, by="plate"):
@@ -55,7 +66,7 @@ class ParkingSystem:
 
         vehicle_id = f"V{self.vehicles.size + 1:03d}"
 
-        v = Vehicle(vehicle_id, plate, owner, vtype)
+        v = Vehicle(vehicle_id, plate, owner, vtype, priority=priority)
         self.vehicles.insert(v)
         self.index_vehicle(v)
         return Result.success(f"{plate} sudah {v.status}", v)
@@ -81,7 +92,10 @@ class ParkingSystem:
         self.queue.enqueue(v)
         v.status = "WAITING"
         self.undo.push(Transaction(tx_type="ENQUEUE", vehicle_id=v.vehicle_id))
-        return Result.success(f"{vehicle_plate} masuk antrean", v)
+        posisi = self.queue.display().index(v) + 1
+        return Result.success(
+            f"{vehicle_plate} masuk antrean prioritas {v.priority}, urutan {posisi}", v
+        )
 
     """ METHOD: Check-out """
 
@@ -96,7 +110,7 @@ class ParkingSystem:
         idx = v.slot_index
         self.slots.release(idx)
         record = HistoryRecord(
-            v.vehicle_id, v.plate, slot_code(idx), v.entry_time, datetime.now()
+            v.vehicle_id, v.plate, slot_code(idx), v.entry_time, datetime.now(), v.vtype
         )
         self.history.add(record)
         v.status, v.slot_index = "EXITED", None
@@ -227,7 +241,7 @@ class ParkingSystem:
             v.status, v.slot_index, v.entry_time = "REGISTERED", None, None
 
         elif tx.tx_type == "ENQUEUE":
-            self.queue.remove_rear()
+            self.queue.remove_vehicle(v.vehicle_id)
             v.status = "REGISTERED"
 
         elif tx.tx_type == "CHECK_OUT":
@@ -239,7 +253,7 @@ class ParkingSystem:
                 p = self.find(tx.promoted_id, by="id")
                 self.slots.release(idx)
                 if p is not None:
-                    self.queue.push_front(p)
+                    self.queue.requeue_front(p)
                     p.status, p.slot_index, p.entry_time = "WAITING", None, None
             record = self.history.remove_last()
             self.slots.assign(idx, v.vehicle_id)
@@ -248,6 +262,39 @@ class ParkingSystem:
                 v.entry_time = record.entry_time
 
         return Result.success(f"Undo {tx.tx_type}, {tx.vehicle_id}")
+
+    """ BST: daftar kendaraan terurut """
+
+    def sorted_vehicles(self, order_by: OrderBy = "plate") -> Result[list[Vehicle]]:
+        """Kendaraan terurut nomor polisi atau ID, lewat in-order BST."""
+        pohon = self.vehicle_tree if order_by == self.vehicle_tree.order_by else None
+        if pohon is None:
+            pohon = VehicleTree(order_by)
+            for kendaraan in self.vehicles:
+                pohon.add(kendaraan)
+        return Result.success(f"Kendaraan terurut {order_by}", pohon.in_order())
+
+    def vehicle_traversals(self, order_by: OrderBy = "plate") -> Result[dict]:
+        """Hasil traversal inorder, preorder, dan postorder beserta tinggi pohon."""
+        pohon = self.vehicle_tree
+        if order_by != pohon.order_by:
+            pohon = VehicleTree(order_by)
+            for kendaraan in self.vehicles:
+                pohon.add(kendaraan)
+        hasil = pohon.traversals()
+        return Result.success(
+            f"Traversal BST kendaraan ({order_by})",
+            {**hasil, "height": pohon.height(), "size": pohon.size, "order_by": order_by},
+        )
+
+    """ Hash table: sebaran kunci """
+
+    def hash_stats(self) -> Result[dict]:
+        """Load factor dan statistik collision kedua indeks hash."""
+        return Result.success(
+            "Statistik hash table",
+            {"by_plate": self.by_plate.stats(), "by_id": self.by_id.stats()},
+        )
 
     """ View Slots """
 
@@ -263,6 +310,7 @@ class ParkingSystem:
     """ View History """
 
     def show_history(self) -> Result[list[HistoryRecord]]:
+        """Riwayat check-out, lama ke baru. Urutannya datang dari in-order BST."""
         return Result.success("Riwayat parkir", self.history.display())
 
     """ Statistics """

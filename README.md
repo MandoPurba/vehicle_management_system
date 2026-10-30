@@ -7,17 +7,32 @@ Struktur Data (DS01).
 
 ## Fitur
 
+### Dari UTS
+
 | Fitur | Keterangan |
 | --- | --- |
-| Registrasi | Mendaftarkan kendaraan baru (ID, plat, pemilik, tipe) |
+| Registrasi | Mendaftarkan kendaraan baru (ID, plat, pemilik, tipe, prioritas) |
 | Check-in | Menempatkan kendaraan ke slot kosong, atau masuk antrean bila penuh |
 | Check-out | Mengosongkan slot, mencatat riwayat, lalu menaikkan kendaraan dari antrean |
-| Pencarian | Mencari kendaraan berdasarkan plat atau ID |
+| Pencarian | Mencari kendaraan berdasarkan plat, ID, atau pemilik |
 | Undo | Membatalkan transaksi terakhir (check-in / antre / check-out) |
 | Laporan | Status slot, isi antrean, riwayat parkir, dan statistik |
+| Statistik rekursif | `count_occupied_recursive`, `sum_costs_recursive`, `max_duration_recursive` |
 | Ubah jumlah slot | Memperbesar atau memperkecil parkiran saat aplikasi jalan |
 | Reset | Mengosongkan seluruh state sistem, jumlah slot tetap |
 | Data contoh | Mengisi sistem dari `data/sample_data.json` sekali klik |
+
+### Tambahan UAS
+
+| No | Fitur | Materi | Di mana |
+| --- | --- | --- | --- |
+| 1 | Pencarian cepat nomor polisi | Hash Table | `core/structures/hash_table.py`; tab **Struktur data** menampilkan load factor, collision, dan rehash |
+| 2 | Daftar kendaraan terurut | BST | `core/structures/bst.py` (`VehicleTree`); tab **Kendaraan (BST)** menampilkan inorder, preorder, postorder, dan gambar percabangannya |
+| 3 | Parkir prioritas | Heap | `core/structures/heap.py`; empat level prioritas (disabilitas, dosen, tamu, umum) di tab **Antrean** |
+| 4 | Peta area parkir dan rute | Graph | `core/structures/graph.py` + `core/parking_map.py`; tab **Slot & peta** menampilkan slot kosong terdekat dari gerbang/gedung beserta gambar petanya |
+| 5 | Pengurutan riwayat parkir | Sorting & Searching | `core/algorithms/sorting.py` dan `searching.py`; tab **Riwayat** mengurutkan menurut waktu, durasi, atau biaya lalu binary search di atasnya |
+| 6 | Dashboard statistik | Recursion + visualisasi | tab **Dashboard**: kartu ringkasan, lima grafik, dan tiga angka yang dihitung rekursif |
+| 7 | Halaman benchmark | Analisis kompleksitas | `core/benchmark.py`; tab **Benchmark** mengukur n = 1.000 / 10.000 / 100.000 |
 
 ## Struktur data yang dipakai
 
@@ -25,14 +40,17 @@ Tiap fitur dipetakan ke satu struktur data:
 
 | Struktur | Modul | Dipakai untuk |
 | --- | --- | --- |
-| Dynamic Array | `core/structures/dynamic_array.py` | `ParkingSlots` — slot parkir berindeks (awalnya `SLOT_CAPACITY` = 5, bisa di-resize) |
-| Linked List | `core/structures/linked_list.py` | `VehicleList` — daftar kendaraan terdaftar, dan `ParkingHistory` — riwayat parkir |
-| Queue | `core/structures/queue.py` | `WaitingQueue` — antrean saat parkir penuh (FIFO) |
+| Dynamic Array | `core/structures/dynamic_array.py` | `ParkingSlots` — slot parkir berindeks, bisa di-resize. Juga jadi penyimpan `MinHeap` |
+| Linked List | `core/structures/linked_list.py` | `VehicleList` — daftar kendaraan terdaftar. `ParkingHistory` tinggal sebagai pembanding |
+| Queue | `core/structures/queue.py` | `WaitingQueue` — antrean FIFO, kini jadi pembanding `PriorityWaitingQueue` |
 | Stack | `core/structures/stack.py` | `UndoStack` — riwayat transaksi untuk undo (LIFO) |
-| Hash Table | `core/structures/hash_table.py` | Indeks pencarian plat dan id, rata-rata O(1) |
-| BST | `core/structures/bst.py` | *(rencana)* `ParkingHistory` terurut waktu, menggantikan versi linked list |
-| Heap | `core/structures/heap.py` | Prioritas antrean (mis. kendaraan prioritas) |
-| Graph | `core/structures/graph.py` | Tata letak area parkir / pencarian rute slot |
+| Hash Table | `core/structures/hash_table.py` | Indeks plat dan id rata-rata O(1), chaining + rehash di load factor 0,75. Juga jadi adjacency list `Graph` |
+| BST | `core/structures/bst.py` | `HistoryTree` — riwayat urut waktu, dan `VehicleTree` — kendaraan urut plat/ID |
+| Heap | `core/structures/heap.py` | `MinHeap` dan `PriorityWaitingQueue` — antrean berprioritas. `MinHeap` juga dipakai Dijkstra |
+| Graph | `core/structures/graph.py` | Peta gerbang, blok parkir, dan gedung: BFS, DFS, dan Dijkstra |
+| Sorting | `core/algorithms/sorting.py` | Merge, insertion, bubble, dan quick sort untuk riwayat parkir |
+| Searching | `core/algorithms/searching.py` | Binary search dan linear search pada riwayat terurut |
+| Recursion | `core/algorithms/recursion.py` | Tiga perhitungan statistik tanpa loop |
 
 ## Struktur folder
 
@@ -41,12 +59,17 @@ vehicle_management_system/
 ├── app.py              # Entry point Streamlit
 ├── core/
 │   ├── services.py     # ParkingSystem — facade seluruh operasi
+│   ├── persistence.py  # Simpan & muat state ke data/state.json
 │   ├── sample_data.py  # Pemuat data contoh dari data/sample_data.json
+│   ├── parking_map.py  # Peta kampus & pencarian slot terdekat
+│   ├── benchmark.py    # Pengukuran waktu eksekusi
 │   ├── models/         # Vehicle, Transaction, HistoryRecord, Result, konstanta
 │   ├── structures/     # Implementasi struktur data
-│   └── algorithms/     # Algoritma sorting & searching
+│   └── algorithms/     # Recursion, sorting, searching
 ├── views/
-│   └── parking_ui.py   # Antarmuka Streamlit
+│   ├── parking_ui.py   # Antarmuka Streamlit, delapan tab
+│   ├── charts.py       # Palet & penyiapan data grafik
+│   └── diagrams.py     # Diagram Mermaid peta dan pohon BST
 ├── data/
 │   └── sample_data.json  # Data contoh untuk demo
 ├── tests/              # Unit test
@@ -57,6 +80,56 @@ Inti logika ada di `ParkingSystem` (`core/services.py`), sebuah *facade*
 yang menjadi satu pintu ke semua struktur data di atas. Setiap method
 mengembalikan objek `Result` berisi status berhasil/gagal beserta pesannya,
 jadi lapisan `views/` tidak perlu menangani exception.
+
+### Catatan desain
+
+**Semua operasi BST iteratif.** Versi rekursifnya lebih ringkas, tapi
+kedalaman rekursinya sebesar tinggi pohon. Riwayat parkir lahir urut
+waktu sehingga pohonnya merosot menjadi rantai, dan di atas ~1000
+catatan Python berhenti dengan `RecursionError`. Diukur: 5.000 data
+terurut memberi tinggi pohon 5.000, sedangkan 100.000 data teracak
+hanya 41.
+
+**Antrean prioritas berkunci `(rank, nomor urut)`.** Heap sendiri tidak
+menjamin stabilitas, jadi tanpa nomor urut itu kendaraan berprioritas
+sama bisa saling menyalip. Undo enqueue mencabut kendaraan yang
+ditunjuk, bukan yang paling belakang, karena heap tidak punya
+"belakang".
+
+**Tarif parkir kampus proporsional per menit**, dibulatkan ke ratusan
+rupiah, dan kendaraan yang keluar tanpa sempat parkir tidak ditagih.
+Bukan tarif per jam penuh seperti parkir umum.
+
+**Rehash hash table bisa dimatikan** lewat `HashTable(auto_rehash=False)`.
+Dipakai test dan demo collision: dengan rehash menyala, rantai tabrakan
+otomatis bubar sehingga collision-nya justru tidak bisa ditunjukkan.
+
+**Isi tab dihitung lazy** lewat `st.tabs(on_change="rerun")`. Tanpa itu
+Dijkstra, traversal BST, dan statistik hash ikut jalan setiap rerun
+meski tabnya tidak dibuka.
+
+### Riwayat parkir memakai BST
+
+`ParkingSystem.history` adalah `HistoryTree`, binary search tree berkunci
+`(exit_time, vehicle_id)`. `vehicle_id` ada di kunci untuk memutus seri:
+dua check-out bisa tercatat pada waktu yang sama, dan kalau kuncinya
+hanya `exit_time`, catatan yang satu akan menimpa yang lain.
+
+Yang didapat dari BST:
+
+- Jelajah in-order mengeluarkan riwayat urut waktu keluar tanpa pernah
+  memanggil sort, jadi `data/state.json` dan tabel di UI langsung urut.
+- `between(start, end)` menjawab pertanyaan rentang waktu tanpa memindai
+  seluruh catatan — subpohon yang kuncinya di luar rentang tidak
+  dikunjungi. Ini yang tidak bisa dilakukan linked list.
+- `remove_last()` membuang simpul paling kanan, dipakai undo check-out.
+
+Satu hal yang perlu diakui: `BST` di sini tidak menyeimbangkan diri, dan
+riwayat parkir lahir urut waktu. Tiap catatan baru selalu jatuh ke kanan,
+jadi pohonnya merosot menjadi rantai — diukur dengan 7 catatan, tingginya
+7, sama saja dengan linked list. Keuntungan BST di proyek ini ada di
+`between()` dan pada riwayat yang disisipkan tidak berurutan, bukan pada
+tinggi pohon. Penyeimbangan (AVL/red-black) adalah langkah lanjutannya.
 
 ## Menjalankan
 
@@ -130,15 +203,20 @@ Proyek masih dalam pengerjaan:
 - [x] `ParkingSystem`: registrasi, check-in, check-out, pencarian, undo, laporan
 - [x] Ubah jumlah slot saat aplikasi jalan (`resize_slots()`)
 - [x] Struktur data inti: dynamic array, linked list, queue, stack
-- [x] Antarmuka Streamlit di `views/parking_ui.py`
+- [x] Antarmuka Streamlit delapan tab di `views/parking_ui.py`
 - [x] Data contoh di `data/sample_data.json`
 - [x] Persistensi state ke `data/state.json` (simpan & muat ulang)
-- [x] Unit test di `tests/`
+- [x] Unit test di `tests/` (75 test)
 
-Rencana pengembangan lanjutan (file-nya sengaja masih kosong):
+Fitur wajib UAS:
 
-- [ ] `bst.py` — `ParkingHistory` berbasis BST, riwayat urut tanpa sorting
-- [x] `hash_table.py` — pencarian plat dan id rata-rata O(1). Pencarian nama pemilik memindai linked list, O(n)
-- [ ] `heap.py` — antrean berprioritas
-- [ ] `graph.py` — tata letak area parkir
-- [ ] `core/algorithms/` — sorting & searching
+- [x] `hash_table.py` — plat dan id rata-rata O(1), load factor dan collision ditampilkan
+- [x] `bst.py` — `HistoryTree` dan `VehicleTree`, ketiga traversal, gambar percabangan
+- [x] `heap.py` — `MinHeap` dan antrean empat level prioritas
+- [x] `graph.py` — peta kampus, BFS, DFS, Dijkstra, slot kosong terdekat
+- [x] `core/algorithms/` — sorting, binary search, dan rekursi
+- [x] `benchmark.py` — perbandingan waktu eksekusi pada n bertingkat
+
+Belum dikerjakan:
+
+- [ ] Penyeimbangan pohon (AVL / red-black) supaya riwayat tidak merosot jadi rantai

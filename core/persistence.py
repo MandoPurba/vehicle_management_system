@@ -1,7 +1,9 @@
 """Simpan dan muat seluruh state parkir ke data/state.json.
 
-Hash table tidak ditulis ke file. Saat muat, indeks plat dan id dibangun
-ulang dari daftar kendaraan, dan objek yang sama dipakai antrean serta slot.
+Hash table dan bentuk pohon riwayat tidak ditulis ke file. Saat muat,
+indeks plat dan id dibangun ulang dari daftar kendaraan, objek yang sama
+dipakai antrean serta slot, dan riwayat disisipkan ulang satu per satu ke
+HistoryTree.
 """
 
 import json
@@ -10,7 +12,9 @@ from pathlib import Path
 from typing import cast
 
 from core.models import (
+    DEFAULT_PRIORITY,
     HistoryRecord,
+    Priority,
     Transaction,
     TxType,
     Vehicle,
@@ -18,7 +22,6 @@ from core.models import (
     VehicleType,
 )
 from core.services import ParkingSystem
-from core.structures.linked_list import HistoryNode
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 STATE_PATH = DATA_DIR / "state.json"
@@ -47,20 +50,19 @@ def _require_text(row: dict, field: str, label: str) -> str:
 
 def snapshot(system: ParkingSystem) -> dict:
     """Salinan state yang aman ditulis ke JSON."""
-    history: list[dict] = []
-    node: HistoryNode | None = system.history.head
-    while node is not None:
-        record = node.data
-        history.append(
-            {
-                "vehicle_id": record.vehicle_id,
-                "plate": record.plate,
-                "slot_code": record.slot_code,
-                "entry_time": _dump_time(record.entry_time),
-                "exit_time": _dump_time(record.exit_time),
-            }
-        )
-        node = node.next
+    # Iterasi HistoryTree sudah in-order, jadi riwayatnya tertulis urut
+    # waktu keluar dari yang paling lama tanpa perlu disortir.
+    history: list[dict] = [
+        {
+            "vehicle_id": record.vehicle_id,
+            "plate": record.plate,
+            "slot_code": record.slot_code,
+            "entry_time": _dump_time(record.entry_time),
+            "exit_time": _dump_time(record.exit_time),
+            "vtype": record.vtype,
+        }
+        for record in system.history
+    ]
 
     undo_oldest_first = reversed(list(system.undo))
     return {
@@ -74,6 +76,7 @@ def snapshot(system: ParkingSystem) -> dict:
                 "status": vehicle.status,
                 "entry_time": _dump_time(vehicle.entry_time),
                 "slot_index": vehicle.slot_index,
+                "priority": vehicle.priority,
             }
             for vehicle in system.vehicles
         ],
@@ -142,6 +145,7 @@ def load_state(path: Path | str = STATE_PATH) -> ParkingSystem:
             cast(VehicleStatus, _require_text(row, "status", f"kendaraan {number}")),
             _load_time(row.get("entry_time")),
             row.get("slot_index") if isinstance(row.get("slot_index"), int) else None,
+            cast(Priority, row.get("priority") or DEFAULT_PRIORITY),
         )
         if system.find(vehicle.plate) is not None or system.find(vehicle.vehicle_id, by="id"):
             raise ValueError(f"{path.name}: plat atau id {vehicle.vehicle_id} ganda")
@@ -158,10 +162,10 @@ def load_state(path: Path | str = STATE_PATH) -> ParkingSystem:
     for vehicle_id in queue:
         if not isinstance(vehicle_id, str):
             raise ValueError(f"{path.name}: antrean berisi id yang tidak sah")
-        vehicle = system.find(vehicle_id, by="id")
-        if vehicle is None:
+        antre = system.find(vehicle_id, by="id")
+        if antre is None:
             raise ValueError(f"{path.name}: antrean menyebut {vehicle_id} yang tidak terdaftar")
-        system.queue.enqueue(vehicle)
+        system.queue.enqueue(antre)
 
     for number, row in enumerate(history, start=1):
         if not isinstance(row, dict):
@@ -177,6 +181,7 @@ def load_state(path: Path | str = STATE_PATH) -> ParkingSystem:
                 _require_text(row, "slot_code", f"riwayat {number}"),
                 entry_time,
                 exit_time,
+                cast(VehicleType, row.get("vtype") or "MOBIL"),
             )
         )
 
