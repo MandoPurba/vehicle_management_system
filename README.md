@@ -30,7 +30,7 @@ Tiap fitur dipetakan ke satu struktur data:
 | Queue | `core/structures/queue.py` | `WaitingQueue` — antrean saat parkir penuh (FIFO) |
 | Stack | `core/structures/stack.py` | `UndoStack` — riwayat transaksi untuk undo (LIFO) |
 | Hash Table | `core/structures/hash_table.py` | Indeks pencarian plat dan id, rata-rata O(1) |
-| BST | `core/structures/bst.py` | *(rencana)* `ParkingHistory` terurut waktu, menggantikan versi linked list |
+| BST | `core/structures/bst.py` | `BST` — binary search tree, dan `HistoryTree` — riwayat parkir terurut waktu keluar tanpa sorting |
 | Heap | `core/structures/heap.py` | Prioritas antrean (mis. kendaraan prioritas) |
 | Graph | `core/structures/graph.py` | Tata letak area parkir / pencarian rute slot |
 
@@ -137,7 +137,8 @@ Proyek masih dalam pengerjaan:
 
 Rencana pengembangan lanjutan (file-nya sengaja masih kosong):
 
-- [ ] `bst.py` — `ParkingHistory` berbasis BST, riwayat urut tanpa sorting
+- [x] `bst.py` — `BST` dan `HistoryTree`, riwayat urut tanpa sorting. Belum dipasang
+      di `ParkingSystem`; `ParkingHistory` versi linked list masih yang dipakai
 - [x] `hash_table.py` — pencarian plat dan id rata-rata O(1). Pencarian nama pemilik memindai linked list, O(n)
 - [ ] `heap.py` — antrean berprioritas
 - [ ] `graph.py` — tata letak area parkir
