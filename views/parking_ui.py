@@ -560,6 +560,7 @@ def _render_history(system: ParkingSystem) -> None:
 
     if not submitted:
         return
+    target: str | int | timedelta
     try:
         if cari_by == "plate":
             target = nilai_teks.strip()

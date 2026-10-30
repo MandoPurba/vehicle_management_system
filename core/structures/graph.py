@@ -26,19 +26,26 @@ class Graph:
     def edge_count(self) -> int:
         return sum(len(self.neighbors(n)) for n in self._nodes) // 2
 
+    def _tetangga(self, name: str) -> list[tuple[str, int]]:
+        """Daftar tetangga yang tersimpan, dibuat kalau simpulnya baru."""
+        tersimpan = self._adjacency.get(name)
+        if tersimpan is None:
+            tersimpan = []
+            self._adjacency.put(name, tersimpan)
+            self._nodes.append(name)
+        return tersimpan
+
     def add_node(self, name: str, kind: str = "NODE") -> None:
         """Tambah simpul. Memanggil ulang nama yang sama tidak menduplikasi."""
-        if self._adjacency.get(name) is None:
-            self._adjacency.put(name, [])
-            self._nodes.append(name)
+        self._tetangga(name)
         self._kind.put(name, kind)
 
     def add_edge(self, a: str, b: str, weight: int) -> None:
         """Hubungkan dua simpul dua arah dengan bobot jarak."""
         self.add_node(a)
         self.add_node(b)
-        self._adjacency.get(a).append((b, weight))
-        self._adjacency.get(b).append((a, weight))
+        self._tetangga(a).append((b, weight))
+        self._tetangga(b).append((a, weight))
 
     def nodes(self, kind: str | None = None) -> list[str]:
         """Nama simpul, bisa disaring menurut jenisnya."""
@@ -51,7 +58,7 @@ class Graph:
         return self._kind.get(name)
 
     def neighbors(self, name: str) -> list[tuple[str, int]]:
-        """Tetangga sebuah simpul beserta bobotnya."""
+        """Tetangga sebuah simpul beserta bobotnya, kosong kalau tidak ada."""
         return self._adjacency.get(name) or []
 
     def has_node(self, name: str) -> bool:
@@ -132,6 +139,8 @@ class Graph:
 
         while not heap.is_empty():
             node = heap.pop()
+            if node is None:  # hanya terjadi kalau heap kosong
+                break
             if node in selesai:
                 continue
             selesai.add(node)

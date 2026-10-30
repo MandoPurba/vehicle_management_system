@@ -162,10 +162,10 @@ def load_state(path: Path | str = STATE_PATH) -> ParkingSystem:
     for vehicle_id in queue:
         if not isinstance(vehicle_id, str):
             raise ValueError(f"{path.name}: antrean berisi id yang tidak sah")
-        vehicle = system.find(vehicle_id, by="id")
-        if vehicle is None:
+        antre = system.find(vehicle_id, by="id")
+        if antre is None:
             raise ValueError(f"{path.name}: antrean menyebut {vehicle_id} yang tidak terdaftar")
-        system.queue.enqueue(vehicle)
+        system.queue.enqueue(antre)
 
     for number, row in enumerate(history, start=1):
         if not isinstance(row, dict):

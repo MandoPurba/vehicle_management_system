@@ -131,7 +131,7 @@ class ParkingHistory:
         if self.head is None:
             print("Riwayat parkir kosong")
             return
-        current = self.head
+        current: HistoryNode | None = self.head
         no = 1
         while current is not None:
             r = current.data

@@ -37,7 +37,7 @@ def okupansi_per_blok(slots: ParkingSlots) -> pd.DataFrame:
 
 def kendaraan_per_status(vehicles: list[Vehicle]) -> pd.DataFrame:
     """Jumlah kendaraan di tiap status."""
-    jumlah = Counter(v.status for v in vehicles)
+    jumlah: Counter[str] = Counter(str(v.status) for v in vehicles)
     return pd.DataFrame(
         {"Jumlah": [jumlah.get(s, 0) for s in STATUS_ORDER]},
         index=[STATUS_LABEL[s] for s in STATUS_ORDER],
