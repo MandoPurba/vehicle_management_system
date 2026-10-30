@@ -1,52 +1,62 @@
 """Antarmuka Streamlit untuk Smart Parking.
 
 Lapisan ini hanya memanggil ParkingSystem lalu menampilkan isi Result.
-Semua logika parkir tetap di core/services.py.
+Semua logika parkir tetap di core/.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import cast
 
 import streamlit as st
 
+from core.algorithms.recursion import max_duration_recursive, sum_costs_recursive
+from core.algorithms.searching import search_history
+from core.algorithms.sorting import sort_history
+from core.benchmark import UKURAN, run_benchmark
 from core.models import (
     MAX_SLOT_CAPACITY,
     MIN_SLOT_CAPACITY,
+    PRIORITY_LABEL,
     SLOT_CAPACITY,
+    TARIF_PER_JAM,
     HistoryRecord,
+    Priority,
     Result,
     SearchBy,
+    SortBy,
     Vehicle,
     VehicleType,
     slot_code,
 )
+from core.parking_map import GEDUNG, GERBANG, LABEL, build_map, slot_terdekat
 from core.persistence import STATE_PATH, load_state, save_state
 from core.sample_data import load_sample_data
 from core.services import ParkingSystem
+from core.structures.bst import OrderBy
+from views import charts, diagrams
 
 VEHICLE_TYPES: tuple[VehicleType, ...] = ("MOBIL", "MOTOR")
+PRIORITIES: tuple[Priority, ...] = ("UMUM", "DOSEN", "TAMU", "DISABILITAS")
 SEARCH_LABELS: dict[str, str] = {
     "plate": "Plat nomor",
     "id": "ID kendaraan",
     "owner": "Pemilik",
 }
-STATUS_LABEL = {
-    "REGISTERED": "Terdaftar",
-    "PARKED": "Parkir",
-    "WAITING": "Antre",
-    "EXITED": "Keluar",
+SORT_LABELS: dict[str, str] = {
+    "entry_time": "Waktu masuk",
+    "exit_time": "Waktu keluar",
+    "duration": "Durasi parkir",
+    "cost": "Biaya",
+    "plate": "Plat nomor",
 }
+STATUS_LABEL = charts.STATUS_LABEL
 SLOTS_PER_ROW = 5
 
 
 # ---- State & util ----
 
 def _system() -> ParkingSystem:
-    """ParkingSystem disimpan di session_state agar bertahan antar-rerun.
-
-    Kalau data/state.json ada, sesi baru membacanya. Hash dibangun ulang
-    dari daftar kendaraan di file itu.
-    """
+    """ParkingSystem di session_state agar bertahan antar-rerun."""
     if "system" not in st.session_state:
         if STATE_PATH.is_file():
             try:
@@ -59,8 +69,15 @@ def _system() -> ParkingSystem:
     return st.session_state.system
 
 
+def _map():
+    """Graf peta parkir, dibangun sekali per sesi."""
+    if "map" not in st.session_state:
+        st.session_state.map = build_map()
+    return st.session_state.map
+
+
 def _apply(result: Result) -> None:
-    """Simpan state ke file, simpan pesan hasil operasi, lalu muat ulang halaman."""
+    """Simpan state, simpan pesan hasil operasi, lalu muat ulang halaman."""
     system = st.session_state.get("system")
     if isinstance(system, ParkingSystem):
         save_state(system)
@@ -81,10 +98,24 @@ def _clock(moment: datetime | None) -> str:
     return moment.strftime("%H:%M:%S") if moment else "-"
 
 
-# ---- Panel tampilan ----
+def _rupiah(nilai: float) -> str:
+    return f"Rp {int(nilai):,}".replace(",", ".")
 
-def _render_stats(system: ParkingSystem) -> None:
+
+def _ribuan(n: int) -> str:
+    return f"{n:,}".replace(",", ".")
+
+
+def _records(system: ParkingSystem) -> list[HistoryRecord]:
+    return system.show_history().data or []
+
+
+# ---- Halaman: Dashboard ----
+
+def _render_dashboard(system: ParkingSystem) -> None:
     stats = system.statistics().data or {}
+    records = _records(system)
+
     labels = [
         ("Total slot", "total_slots"),
         ("Terisi", "occupied_slots"),
@@ -95,98 +126,71 @@ def _render_stats(system: ParkingSystem) -> None:
     for col, (label, key) in zip(st.columns(len(labels)), labels, strict=True):
         col.metric(label, stats.get(key, 0))
 
-
-def _render_slots(system: ParkingSystem) -> None:
-    slots = system.show_slots().data or []
-    for start in range(0, len(slots), SLOTS_PER_ROW):
-        row = slots[start : start + SLOTS_PER_ROW]
-        columns = st.columns(SLOTS_PER_ROW)
-        for col, (code, occupant_id) in zip(columns, row, strict=False):
-            with col.container(border=True):
-                st.caption(code)
-                if occupant_id is None:
-                    st.markdown(":green[**Kosong**]")
-                    st.caption("&nbsp;", unsafe_allow_html=True)
-                    continue
-                vehicle = system.find(occupant_id, by="id")
-                st.markdown(f":red[**{vehicle.plate if vehicle else occupant_id}**]")
-                st.caption(vehicle.owner if vehicle else "-")
-
-
-def _render_queue(system: ParkingSystem) -> None:
-    queue = system.show_queue().data or []
-    if not queue:
-        st.caption("Antrean kosong.")
-        return
-    st.dataframe(
-        [
-            {"Urutan": i, "Plat": v.plate, "Pemilik": v.owner, "Tipe": v.vtype}
-            for i, v in enumerate(queue, start=1)
-        ],
-        hide_index=True,
-        width="stretch",
+    rekursif = st.columns(3)
+    rekursif[0].metric("Slot terisi", stats.get("occupied_slots", 0))
+    rekursif[1].metric("Total pendapatan", _rupiah(sum_costs_recursive(records)))
+    rekursif[2].metric("Durasi terlama", f"{max_duration_recursive(records)} menit")
+    st.caption(
+        "Tiga angka di atas dihitung tanpa loop oleh `count_occupied_recursive`, "
+        "`sum_costs_recursive`, dan `max_duration_recursive` di "
+        "`core/algorithms/recursion.py`."
     )
 
+    st.divider()
+    kiri, kanan = st.columns(2)
 
-def _render_history(system: ParkingSystem) -> None:
-    # show_history() mengembalikan hasil in-order HistoryTree: urut waktu
-    # keluar dari yang paling lama. Tabel ini membalikkannya supaya
-    # check-out terbaru ada di baris atas.
-    records: list[HistoryRecord] = system.show_history().data or []
+    with kiri:
+        st.subheader("Okupansi per blok")
+        data = charts.okupansi_per_blok(system.slots)
+        st.bar_chart(data, color=list(charts.SERIES[:2]))
+        st.dataframe(data, width="stretch")
+
+    with kanan:
+        st.subheader("Kendaraan per status")
+        data = charts.kendaraan_per_status(system.vehicles.display())
+        st.bar_chart(data, color=charts.SERIES[0])
+        st.dataframe(data.T, width="stretch")
+
     if not records:
-        st.caption("Belum ada riwayat parkir.")
+        st.info("Grafik check-out dan pendapatan muncul setelah ada kendaraan keluar.")
         return
-    st.dataframe(
-        [
-            {
-                "Plat": r.plate,
-                "Slot": r.slot_code,
-                "Masuk": _clock(r.entry_time),
-                "Keluar": _clock(r.exit_time),
-            }
-            for r in reversed(records)
-        ],
-        hide_index=True,
-        width="stretch",
-    )
+
+    st.divider()
+    kiri, kanan = st.columns(2)
+    with kiri:
+        st.subheader("Check-out per jam")
+        st.line_chart(charts.checkout_per_jam(records), color=charts.SERIES[0])
+    with kanan:
+        st.subheader("Pendapatan per jam")
+        # Dipisah dari grafik di sebelah: satu grafik satu sumbu, skala
+        # rupiah tidak boleh ditumpuk dengan skala jumlah kendaraan.
+        st.line_chart(charts.pendapatan_per_jam(records), color=charts.SERIES[1])
+
+    st.subheader("Durasi parkir per kendaraan")
+    st.bar_chart(charts.durasi_per_kendaraan(records), color=charts.SERIES[2])
 
 
-def _render_vehicles(system: ParkingSystem) -> None:
-    vehicles = system.vehicles.display()
-    if not vehicles:
-        st.caption("Belum ada kendaraan terdaftar.")
-        return
-    st.dataframe(
-        [
-            {
-                "ID": v.vehicle_id,
-                "Plat": v.plate,
-                "Pemilik": v.owner,
-                "Tipe": v.vtype,
-                "Status": STATUS_LABEL.get(v.status, v.status),
-                "Slot": slot_code(v.slot_index) if v.slot_index is not None else "-",
-            }
-            for v in vehicles
-        ],
-        hide_index=True,
-        width="stretch",
-    )
-
-
-# ---- Formulir ----
+# ---- Halaman: Operasi ----
 
 def _form_registrasi(system: ParkingSystem) -> None:
     with st.form("registrasi", clear_on_submit=True):
-        # vehicle_id = st.text_input("ID kendaraan", placeholder="V001", key="reg_id")
         plate = st.text_input("Plat nomor", placeholder="B 1234 ABC", key="reg_plate")
         owner = st.text_input("Nama pemilik", placeholder="Budi Santoso", key="reg_owner")
         vtype = st.selectbox("Tipe kendaraan", VEHICLE_TYPES, key="reg_type")
+        priority = st.selectbox(
+            "Prioritas",
+            PRIORITIES,
+            format_func=lambda k: PRIORITY_LABEL[k],
+            key="reg_priority",
+            help="Menentukan urutan dilayani saat parkir penuh.",
+        )
         if st.form_submit_button("Daftarkan", type="primary"):
             _apply(
                 system.registrasi(
                     plate.strip(),
                     owner.strip(),
                     cast(VehicleType, vtype),
+                    cast(Priority, priority),
                 )
             )
 
@@ -194,7 +198,7 @@ def _form_registrasi(system: ParkingSystem) -> None:
 def _pick_vehicle(system: ParkingSystem, statuses: tuple[str, ...], key: str) -> str | None:
     """Selectbox kendaraan yang statusnya cocok. None kalau tidak ada."""
     options: dict[str, str] = {
-        f"{v.plate} — {v.owner}": v.plate
+        f"{v.plate} — {v.owner} ({PRIORITY_LABEL.get(v.priority, v.priority)})": v.plate
         for v in system.vehicles.display()
         if v.status in statuses
     }
@@ -219,15 +223,21 @@ def _form_check_out(system: ParkingSystem) -> None:
             st.info("Tidak ada kendaraan yang sedang parkir.")
         if st.form_submit_button("Check-out", type="primary", disabled=plate is None) and plate:
             _apply(system.check_out(plate))
+    st.caption(
+        "Tarif parkir kampus: "
+        + ", ".join(f"{t} {_rupiah(h)}/jam" for t, h in TARIF_PER_JAM.items())
+        + " — dihitung proporsional per menit, dibulatkan ke ratusan. "
+        "Keluar tanpa sempat parkir tidak ditagih."
+    )
 
 
 def _form_search(system: ParkingSystem) -> None:
     with st.form("cari"):
-        by = st.radio(
+        by = st.segmented_control(
             "Cari berdasarkan",
             list(SEARCH_LABELS),
             format_func=lambda k: SEARCH_LABELS[k],
-            horizontal=True,
+            default="plate",
             key="search_by",
         )
         key = st.text_input("Kata kunci", key="search_key")
@@ -241,21 +251,133 @@ def _form_search(system: ParkingSystem) -> None:
         return
     found: Vehicle = result.data
     st.success(result.message)
-    detail = st.columns(3)
+    detail = st.columns(4)
     detail[0].metric("Plat", found.plate)
     detail[1].metric("Status", STATUS_LABEL.get(found.status, found.status))
     detail[2].metric(
         "Slot", slot_code(found.slot_index) if found.slot_index is not None else "-"
     )
-    st.caption(f"ID {found.vehicle_id} · {found.owner} · {found.vtype} · masuk {_clock(found.entry_time)}")
+    detail[3].metric("Prioritas", PRIORITY_LABEL.get(found.priority, found.priority))
+    st.caption(
+        f"ID {found.vehicle_id} · {found.owner} · {found.vtype} · masuk {_clock(found.entry_time)}"
+    )
+    if by == "plate":
+        st.caption(
+            "Ditemukan lewat hash table, rantai bucket sepanjang "
+            f"{system.by_plate.chain_length(found.plate)} simpul."
+        )
+    elif by == "owner":
+        st.caption("Nama pemilik tidak diindeks, jadi linked list dipindai O(n).")
+
+
+def _render_operasi(system: ParkingSystem) -> None:
+    tabs = st.tabs(["Registrasi", "Check-in", "Check-out", "Cari"])
+    with tabs[0]:
+        _form_registrasi(system)
+    with tabs[1]:
+        _form_check_in(system)
+    with tabs[2]:
+        _form_check_out(system)
+    with tabs[3]:
+        _form_search(system)
+
+
+# ---- Halaman: Slot & peta ----
+
+def _render_slots(system: ParkingSystem) -> None:
+    slots = system.show_slots().data or []
+    for start in range(0, len(slots), SLOTS_PER_ROW):
+        row = slots[start : start + SLOTS_PER_ROW]
+        columns = st.columns(SLOTS_PER_ROW)
+        for col, (code, occupant_id) in zip(columns, row, strict=False):
+            with col.container(border=True):
+                st.caption(code)
+                if occupant_id is None:
+                    st.markdown(":green[**Kosong**]")
+                    st.caption("&nbsp;", unsafe_allow_html=True)
+                    continue
+                vehicle = system.find(occupant_id, by="id")
+                st.markdown(f":red[**{vehicle.plate if vehicle else occupant_id}**]")
+                st.caption(vehicle.owner if vehicle else "-")
+
+
+def _render_slot_dan_peta(system: ParkingSystem) -> None:
+    st.subheader("Status slot")
+    _render_slots(system)
+    st.divider()
+    _render_peta(system)
+
+
+def _render_peta(system: ParkingSystem) -> None:
+    graph = _map()
+
+    dari = st.selectbox(
+        "Cari slot terdekat dari",
+        [*GERBANG, *GEDUNG],
+        format_func=lambda k: LABEL[k],
+        key="map_from",
+    )
+    hasil = slot_terdekat(graph, system.slots, dari)
+    if hasil["found"]:
+        kolom = st.columns(3)
+        kolom[0].metric("Slot terdekat", hasil["slot_code"])
+        kolom[1].metric("Blok", LABEL[hasil["block"]])
+        kolom[2].metric("Jarak", f"{hasil['distance']} m")
+        st.success(" → ".join(LABEL[n] for n in hasil["path"]))
+        st.caption(f"{hasil['free_in_block']} slot kosong di blok itu.")
+    else:
+        st.warning(hasil["message"])
+
+    st.divider()
+    st.subheader("Peta area parkir")
+    st.caption(
+        "Biru gerbang, hijau blok parkir, jingga gedung tujuan. Angka pada "
+        "garis adalah jarak dalam meter, dan kuning menandai jalur terpilih."
+    )
+    st.mermaid_chart(
+        diagrams.peta_parkir(sorot=hasil.get("path") if hasil["found"] else None),
+        alt="Peta area parkir kampus: dua gerbang, tiga blok parkir, dan tiga gedung, terhubung jalur berjarak",
+    )
+
+    st.divider()
+    st.subheader("Penjelajahan graf")
+    kiri, kanan = st.columns(2)
+    with kiri:
+        awal = st.selectbox(
+            "Mulai dari", graph.nodes(), format_func=lambda k: LABEL[k], key="graph_start"
+        )
+        st.caption("BFS — melebar, tetangga terdekat lebih dulu")
+        st.code(" → ".join(LABEL[n] for n in graph.bfs(awal)), language=None)
+        st.caption("DFS — mendalam, satu cabang sampai habis")
+        st.code(" → ".join(LABEL[n] for n in graph.dfs(awal)), language=None)
+    with kanan:
+        tujuan = st.selectbox(
+            "Menuju", graph.nodes(), format_func=lambda k: LABEL[k], key="graph_goal"
+        )
+        jalur, jarak = graph.shortest_path(awal, tujuan)
+        hop = graph.bfs_path(awal, tujuan)
+        if jalur:
+            st.caption("Dijkstra — jarak terpendek menurut bobot")
+            st.code(f"{' → '.join(LABEL[n] for n in jalur)}  =  {int(jarak)} m", language=None)
+            st.caption("BFS — simpul tersedikit, bobot diabaikan")
+            st.code(" → ".join(LABEL[n] for n in hop), language=None)
+            if jalur != hop:
+                st.info("Kedua jalur beda: yang paling sedikit simpul belum tentu terpendek.")
+        else:
+            st.warning("Tidak ada jalur antara dua titik itu.")
+
+    if jalur:
+        st.caption(f"Jalur Dijkstra {LABEL[awal]} ke {LABEL[tujuan]} disorot kuning:")
+        st.mermaid_chart(
+            diagrams.peta_parkir(sorot=jalur),
+            alt=f"Peta parkir dengan jalur terpendek dari {LABEL[awal]} ke {LABEL[tujuan]} disorot",
+        )
+
+    st.caption(f"Peta: {graph.node_count} simpul, {graph.edge_count} jalur.")
 
 
 def _form_resize(system: ParkingSystem) -> None:
-    """Ubah jumlah slot parkir.
-
-    Dalam st.form supaya angkanya bisa diutak-atik dulu tanpa memicu
-    rerun, dan parkiran baru berubah saat tombol ditekan.
-    """
+    """Ubah jumlah slot parkir."""
     with st.form("resize"):
         st.subheader("Jumlah slot")
         capacity = st.number_input(
@@ -274,14 +396,327 @@ def _form_resize(system: ParkingSystem) -> None:
             _apply(system.resize_slots(int(capacity)))
 
 
+# ---- Halaman: Antrean ----
+
+def _render_queue(system: ParkingSystem) -> None:
+    queue = system.show_queue().data or []
+    jumlah = system.queue.group_counts()
+
+    kolom = st.columns(len(PRIORITY_LABEL))
+    for col, (kunci, label) in zip(kolom, PRIORITY_LABEL.items(), strict=True):
+        col.metric(label, jumlah.get(kunci, 0))
+
+    if not queue:
+        st.caption("Antrean kosong.")
+    else:
+        st.dataframe(
+            [
+                {
+                    "Urutan": i,
+                    "Plat": v.plate,
+                    "Pemilik": v.owner,
+                    "Tipe": v.vtype,
+                    "Prioritas": PRIORITY_LABEL.get(v.priority, v.priority),
+                }
+                for i, v in enumerate(queue, start=1)
+            ],
+            hide_index=True,
+            width="stretch",
+        )
+        st.caption(
+            "Urutan datang dari MinHeap berkunci (rank prioritas, nomor urut). "
+            "Nomor urut itu yang menjaga kendaraan berprioritas sama tetap FIFO."
+        )
+
+    st.bar_chart(charts.antrean_per_prioritas(jumlah), color=charts.SERIES[0])
+
+
+# ---- Halaman: Kendaraan (BST) ----
+
+def _render_vehicles(system: ParkingSystem) -> None:
+    order_by = st.segmented_control(
+        "Urutkan pohon berdasarkan",
+        ("plate", "id"),
+        format_func=lambda k: "Nomor polisi" if k == "plate" else "ID kendaraan",
+        default="plate",
+        key="tree_order",
+    )
+    hasil = system.vehicle_traversals(cast(OrderBy, order_by)).data or {}
+    if not hasil.get("size"):
+        st.caption("Belum ada kendaraan terdaftar.")
+        return
+
+    kolom = st.columns(2)
+    kolom[0].metric("Simpul di pohon", hasil["size"])
+    kolom[1].metric("Tinggi pohon", hasil["height"])
+
+    st.subheader("Daftar kendaraan terurut")
+    st.caption("Hasil traversal inorder — terurut tanpa memanggil sort.")
+    st.dataframe(
+        [
+            {
+                "ID": v.vehicle_id,
+                "Plat": v.plate,
+                "Pemilik": v.owner,
+                "Tipe": v.vtype,
+                "Prioritas": PRIORITY_LABEL.get(v.priority, v.priority),
+                "Status": STATUS_LABEL.get(v.status, v.status),
+                "Slot": slot_code(v.slot_index) if v.slot_index is not None else "-",
+            }
+            for v in hasil["inorder"]
+        ],
+        hide_index=True,
+        width="stretch",
+    )
+
+    kunci = (lambda v: v.plate) if order_by == "plate" else (lambda v: v.vehicle_id)
+
+    st.subheader("Percabangan pohon")
+    gambar = diagrams.pohon_bst(system.vehicle_tree.root, kunci) if order_by == "plate" else None
+    if order_by != "plate":
+        st.caption(
+            "Gambar pohon hanya untuk urutan nomor polisi, karena pohon itulah "
+            "yang benar-benar disimpan sistem. Urutan ID dibangun sesaat."
+        )
+    elif gambar is None:
+        st.caption(
+            f"Pohonnya {hasil['size']} simpul — terlalu besar untuk digambar "
+            "supaya tetap terbaca. Muat ulang dengan kendaraan lebih sedikit "
+            "untuk melihat percabangannya."
+        )
+    else:
+        st.caption(
+            "L anak kiri (lebih kecil), R anak kanan (lebih besar). Kuning akar, "
+            "kotak putus-putus cabang yang kosong."
+        )
+        st.mermaid_chart(gambar, alt="Diagram percabangan binary search tree kendaraan")
+
+    st.subheader("Tiga traversal")
+    penjelasan = {
+        "inorder": "Kiri → simpul → kanan. Selalu terurut.",
+        "preorder": "Simpul → kiri → kanan. Menyalin bentuk pohon.",
+        "postorder": "Kiri → kanan → simpul. Anak sebelum induk.",
+    }
+    for col, nama in zip(st.columns(3), ("inorder", "preorder", "postorder"), strict=True):
+        with col:
+            st.markdown(f"**{nama}**")
+            st.caption(penjelasan[nama])
+            st.code("\n".join(kunci(v) for v in hasil[nama]), language=None)
+
+
+# ---- Halaman: Riwayat ----
+
+def _render_history(system: ParkingSystem) -> None:
+    records = _records(system)
+    if not records:
+        st.caption("Belum ada riwayat parkir.")
+        return
+
+    kolom = st.columns([2, 1, 1])
+    by = kolom[0].selectbox(
+        "Urutkan berdasarkan",
+        list(SORT_LABELS),
+        format_func=lambda k: SORT_LABELS[k],
+        key="hist_sort",
+    )
+    turun = kolom[1].toggle("Menurun", key="hist_desc")
+    kolom[2].metric("Catatan", len(records))
+
+    terurut = sort_history(records, by=cast(SortBy, by), descending=turun)
+    st.caption("Diurutkan dengan merge sort O(n log n) di `core/algorithms/sorting.py`.")
+    st.dataframe(
+        [
+            {
+                "Plat": r.plate,
+                "Tipe": r.vtype,
+                "Slot": r.slot_code,
+                "Masuk": _clock(r.entry_time),
+                "Keluar": _clock(r.exit_time),
+                "Durasi (menit)": r.duration_minutes,
+                "Biaya": _rupiah(r.cost),
+            }
+            for r in terurut
+        ],
+        hide_index=True,
+        width="stretch",
+    )
+
+    st.divider()
+    st.subheader("Binary search pada riwayat terurut")
+    with st.form("cari_riwayat"):
+        kolom = st.columns([1, 2])
+        cari_by = kolom[0].selectbox(
+            "Kunci",
+            ("plate", "cost", "duration"),
+            format_func=lambda k: SORT_LABELS[k],
+            key="bs_key",
+        )
+        nilai_teks = kolom[1].text_input(
+            "Nilai yang dicari",
+            key="bs_value",
+            help="Plat apa adanya, biaya dalam rupiah, durasi dalam menit.",
+        )
+        submitted = st.form_submit_button("Cari")
+
+    if not submitted:
+        return
+    try:
+        if cari_by == "plate":
+            target = nilai_teks.strip()
+        elif cari_by == "cost":
+            target = int(nilai_teks)
+        else:
+            target = timedelta(minutes=int(nilai_teks))
+    except ValueError:
+        st.error("Nilai harus berupa angka.")
+        return
+
+    hasil = search_history(records, cast(SortBy, cari_by), target)
+    if hasil["record"] is None:
+        st.error(f"Tidak ada catatan dengan {SORT_LABELS[cari_by].lower()} itu.")
+    else:
+        r = hasil["record"]
+        st.success(
+            f"Ketemu di indeks {hasil['index']}: {r.plate}, "
+            f"{r.duration_minutes} menit, {_rupiah(r.cost)}"
+        )
+    st.caption(
+        f"Binary search memeriksa sekitar {hasil['binary_steps']} data, "
+        f"linear search sampai {hasil['linear_steps']}. Binary search hanya "
+        "sah karena datanya sudah diurutkan lebih dulu."
+    )
+
+
+# ---- Halaman: Struktur data ----
+
+def _render_struktur(system: ParkingSystem) -> None:
+    stats = system.hash_stats().data or {}
+    for nama, judul in (("by_plate", "Indeks nomor polisi"), ("by_id", "Indeks ID")):
+        s = stats.get(nama, {})
+        st.subheader(judul)
+        kolom = st.columns(5)
+        kolom[0].metric("Kunci", s.get("size", 0))
+        kolom[1].metric("Bucket", s.get("capacity", 0))
+        kolom[2].metric("Load factor", f"{s.get('load_factor', 0):.3f}")
+        kolom[3].metric("Bucket bertabrakan", s.get("collision_buckets", 0))
+        kolom[4].metric("Rantai terpanjang", s.get("longest_chain", 0))
+        st.caption(
+            f"{s.get('used_buckets', 0)} bucket terpakai, "
+            f"{s.get('empty_buckets', 0)} kosong, "
+            f"{s.get('colliding_keys', 0)} kunci menumpuk, "
+            f"sudah {s.get('rehash_count', 0)} kali rehash. "
+            "Collision ditangani dengan chaining, dan tabel digandakan "
+            "otomatis begitu load factor melewati 0,75."
+        )
+        tabel = system.by_plate if nama == "by_plate" else system.by_id
+        st.bar_chart(charts.bucket_frame(tabel.bucket_sizes()), color=charts.SERIES[0])
+        st.divider()
+
+    st.subheader("Tinggi pohon")
+    kolom = st.columns(3)
+    kolom[0].metric("BST kendaraan", system.vehicle_tree.height())
+    kolom[1].metric("Simpul kendaraan", system.vehicle_tree.size)
+    kolom[2].metric("BST riwayat", system.history.height())
+    st.caption(
+        "Riwayat masuk urut waktu, jadi pohonnya merosot menjadi rantai "
+        "setinggi jumlah catatan. BST di proyek ini tidak menyeimbangkan "
+        "diri; keuntungannya di traversal terurut dan query rentang, bukan "
+        "di tinggi pohon."
+    )
+
+
+# ---- Halaman: Benchmark ----
+
+def _render_benchmark() -> None:
+    st.caption(
+        "Mengukur waktu eksekusi struktur dan algoritma pada n = "
+        + "; ".join(_ribuan(n) for n in UKURAN)
+        + ". Sekali jalan sekitar 3 detik."
+    )
+    if st.button("Jalankan benchmark", type="primary", key="run_bench"):
+        with st.spinner("Mengukur..."):
+            st.session_state.bench = run_benchmark()
+
+    hasil = st.session_state.get("bench")
+    if hasil is None:
+        st.info("Tekan tombol di atas untuk mulai mengukur.")
+        return
+
+    st.subheader("Pencarian satu data")
+    st.caption("Waktu rata-rata satu operasi pencarian, dalam mikrodetik.")
+    st.altair_chart(
+        charts.benchmark_chart(hasil["cari"]),
+        alt="Grafik log-log waktu pencarian terhadap jumlah data untuk tiap struktur",
+    )
+    st.dataframe(
+        charts.benchmark_frame(hasil["cari"]).style.format("{:.3f}"),
+        width="stretch",
+        alt="Tabel waktu pencarian per struktur dan jumlah data",
+    )
+    st.caption(
+        "Hash table, BST, dan binary search hampir rata saat n naik 100 kali, "
+        "sedangkan linear search dan linked list naik sebanding n. Itulah beda "
+        "O(1) dan O(log n) melawan O(n)."
+    )
+
+    st.divider()
+    st.subheader("Menyisipkan n data")
+    st.altair_chart(
+        charts.benchmark_chart(hasil["sisip"], "detik", "Detik untuk n data"),
+        alt="Grafik log-log waktu penyisipan n data untuk tiap struktur",
+    )
+    st.dataframe(
+        charts.benchmark_frame(hasil["sisip"], "detik").style.format("{:.6f}"),
+        width="stretch",
+        alt="Tabel waktu penyisipan per struktur dan jumlah data",
+    )
+
+    st.divider()
+    st.subheader("Mengurutkan n data")
+    st.altair_chart(
+        charts.benchmark_chart(hasil["urut"], "detik", "Detik untuk n data"),
+        alt="Grafik log-log waktu pengurutan n data untuk tiap algoritma",
+    )
+    st.dataframe(
+        charts.benchmark_frame(hasil["urut"], "detik").style.format("{:.6f}"),
+        width="stretch",
+        alt="Tabel waktu pengurutan per algoritma dan jumlah data",
+    )
+    st.caption(
+        f"Insertion sort sengaja dilewati di atas n = {_ribuan(hasil['batas_kuadratik'])}: "
+        "O(n²) pada 100.000 data butuh sekitar 10 miliar perbandingan."
+    )
+
+    st.divider()
+    st.subheader("Bentuk BST menentukan biayanya")
+    st.dataframe(
+        [
+            {
+                "Kondisi data": r["kondisi"],
+                "n": r["n"],
+                "Tinggi pohon": r["tinggi"],
+                "Waktu sisip (detik)": round(r["detik"], 4),
+                "Kompleksitas": r["kompleksitas"],
+            }
+            for r in hasil["bentuk_bst"]
+        ],
+        hide_index=True,
+        width="stretch",
+    )
+    st.caption(
+        "Data yang sudah terurut membuat tiap simpul jatuh ke kanan, pohonnya "
+        "berubah jadi rantai, dan menyisipkan n data menjadi O(n²)."
+    )
+
+
+# ---- Sidebar ----
+
 def _render_sidebar(system: ParkingSystem) -> None:
     with st.sidebar:
         st.header("Kontrol")
         if st.button("Undo transaksi terakhir", key="undo", width="stretch"):
             _apply(system.undo_last())
         if st.button("Reset sistem", key="reset", width="stretch"):
-            # Jumlah slot ikut terbawa: kapasitas adalah bentuk parkirannya,
-            # bukan data yang dibuang bersama kendaraan.
             st.session_state.system = ParkingSystem(system.slots.capacity)
             _apply(Result.success("Sistem direset"))
 
@@ -319,32 +754,35 @@ def main() -> None:
 
     _render_sidebar(system)
     _render_flash()
-    _render_stats(system)
 
-    st.subheader("Status slot")
-    _render_slots(system)
+    # on_change="rerun" membuat hanya tab terbuka yang dihitung. Tanpa itu
+    # Dijkstra, traversal, dan statistik hash ikut jalan tiap rerun.
+    halaman = st.tabs(
+        [
+            "Dashboard",
+            "Operasi",
+            "Slot & peta",
+            "Antrean",
+            "Kendaraan (BST)",
+            "Riwayat",
+            "Struktur data",
+            "Benchmark",
+        ],
+        key="halaman",
+        on_change="rerun",
+    )
 
-    st.divider()
-    left, right = st.columns([3, 2])
+    def isi(index: int, render) -> None:
+        if not halaman[index].open:
+            return
+        with halaman[index]:
+            render()
 
-    with left:
-        st.subheader("Operasi")
-        tabs = st.tabs(["Registrasi", "Check-in", "Check-out", "Cari"])
-        with tabs[0]:
-            _form_registrasi(system)
-        with tabs[1]:
-            _form_check_in(system)
-        with tabs[2]:
-            _form_check_out(system)
-        with tabs[3]:
-            _form_search(system)
-
-    with right:
-        st.subheader("Antrean")
-        _render_queue(system)
-        st.subheader("Riwayat parkir")
-        _render_history(system)
-
-    st.divider()
-    st.subheader("Kendaraan terdaftar")
-    _render_vehicles(system)
+    isi(0, lambda: _render_dashboard(system))
+    isi(1, lambda: _render_operasi(system))
+    isi(2, lambda: _render_slot_dan_peta(system))
+    isi(3, lambda: _render_queue(system))
+    isi(4, lambda: _render_vehicles(system))
+    isi(5, lambda: _render_history(system))
+    isi(6, lambda: _render_struktur(system))
+    isi(7, _render_benchmark)

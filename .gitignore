@@ -29,3 +29,7 @@ htmlcov/
 
 # State parkir yang ditulis saat aplikasi berjalan
 data/state.json
+
+# Skill/tooling agen, bukan kode proyek
+.agents/
+.claude/

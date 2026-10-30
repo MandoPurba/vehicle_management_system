@@ -12,7 +12,9 @@ from pathlib import Path
 from typing import cast
 
 from core.models import (
+    DEFAULT_PRIORITY,
     HistoryRecord,
+    Priority,
     Transaction,
     TxType,
     Vehicle,
@@ -57,6 +59,7 @@ def snapshot(system: ParkingSystem) -> dict:
             "slot_code": record.slot_code,
             "entry_time": _dump_time(record.entry_time),
             "exit_time": _dump_time(record.exit_time),
+            "vtype": record.vtype,
         }
         for record in system.history
     ]
@@ -73,6 +76,7 @@ def snapshot(system: ParkingSystem) -> dict:
                 "status": vehicle.status,
                 "entry_time": _dump_time(vehicle.entry_time),
                 "slot_index": vehicle.slot_index,
+                "priority": vehicle.priority,
             }
             for vehicle in system.vehicles
         ],
@@ -141,6 +145,7 @@ def load_state(path: Path | str = STATE_PATH) -> ParkingSystem:
             cast(VehicleStatus, _require_text(row, "status", f"kendaraan {number}")),
             _load_time(row.get("entry_time")),
             row.get("slot_index") if isinstance(row.get("slot_index"), int) else None,
+            cast(Priority, row.get("priority") or DEFAULT_PRIORITY),
         )
         if system.find(vehicle.plate) is not None or system.find(vehicle.vehicle_id, by="id"):
             raise ValueError(f"{path.name}: plat atau id {vehicle.vehicle_id} ganda")
@@ -176,6 +181,7 @@ def load_state(path: Path | str = STATE_PATH) -> ParkingSystem:
                 _require_text(row, "slot_code", f"riwayat {number}"),
                 entry_time,
                 exit_time,
+                cast(VehicleType, row.get("vtype") or "MOBIL"),
             )
         )
 

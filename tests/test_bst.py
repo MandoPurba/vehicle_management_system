@@ -290,3 +290,77 @@ def test_riwayat_bertahan_lewat_simpan_muat(tmp_path) -> None:
     assert [r.plate for r in dimuat.history] == ["B 1 AAA", "B 2 BBB"]
     assert dimuat.history.size == 2
     assert isinstance(dimuat.history.display(), list)
+
+
+# ---- Traversal lengkap & VehicleTree ----
+
+def test_postorder_mengeluarkan_anak_sebelum_induk() -> None:
+    tree = BST()
+    for angka in (50, 30, 70, 20, 40, 60, 80):
+        tree.insert(angka)
+
+    assert tree.post_order() == [20, 40, 30, 60, 80, 70, 50]
+    assert tree.pre_order() == [50, 30, 20, 40, 70, 60, 80]
+    assert tree.in_order() == [20, 30, 40, 50, 60, 70, 80]
+    assert tree.level_order() == [50, 30, 70, 20, 40, 60, 80]
+    assert tree.post_order()[-1] == 50  # akar selalu terakhir
+    assert BST().post_order() == []
+
+
+def test_traversal_iteratif_tahan_pohon_rantai() -> None:
+    """Versi rekursif patah di sini karena batas ~1000 frame Python."""
+    rantai = BST()
+    for i in range(3_000):
+        rantai.insert(i)
+
+    assert rantai.height() == 3_000
+    assert rantai.in_order() == list(range(3_000))
+    assert rantai.pre_order()[0] == 0
+    assert rantai.post_order()[-1] == 0
+    assert rantai.remove(1_500) == 1_500
+    assert len(rantai) == 2_999
+
+
+def test_vehicle_tree_urut_plat_dan_id() -> None:
+    from core.models import Vehicle
+    from core.structures.bst import VehicleTree
+
+    kendaraan = [
+        Vehicle("V003", "B 1 AAA", "Ani", "MOBIL"),
+        Vehicle("V001", "D 9 ZZZ", "Budi", "MOTOR"),
+        Vehicle("V002", "C 5 MMM", "Cici", "MOBIL"),
+    ]
+
+    per_plat = VehicleTree("plate")
+    per_id = VehicleTree("id")
+    for v in kendaraan:
+        per_plat.add(v)
+        per_id.add(v)
+
+    assert [v.plate for v in per_plat.in_order()] == ["B 1 AAA", "C 5 MMM", "D 9 ZZZ"]
+    assert [v.vehicle_id for v in per_id.in_order()] == ["V001", "V002", "V003"]
+    assert per_plat.search("C 5 MMM") is kendaraan[2]
+    assert per_plat.search("Z 0 ZZZ") is None
+    assert per_plat.size == 3
+
+    traversal = per_plat.traversals()
+    assert set(traversal) == {"inorder", "preorder", "postorder"}
+    assert len(traversal["postorder"]) == 3
+    assert per_plat.remove("C 5 MMM") is kendaraan[2]
+    assert per_plat.size == 2
+
+
+def test_pohon_kendaraan_terisi_dari_registrasi() -> None:
+    from core.services import ParkingSystem
+
+    system = ParkingSystem()
+    for plat in ("D 9 ZZZ", "B 1 AAA", "C 5 MMM"):
+        system.registrasi(plat, "x", "MOBIL")
+
+    hasil = system.sorted_vehicles("plate")
+    assert [v.plate for v in hasil.data] == ["B 1 AAA", "C 5 MMM", "D 9 ZZZ"]
+
+    traversal = system.vehicle_traversals("id").data
+    assert [v.vehicle_id for v in traversal["inorder"]] == ["V001", "V002", "V003"]
+    assert traversal["height"] >= 1
+    assert traversal["order_by"] == "id"

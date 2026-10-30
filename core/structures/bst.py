@@ -1,22 +1,16 @@
-"""Binary search tree, dan riwayat parkir yang dibangun di atasnya.
+"""Binary search tree, serta riwayat parkir dan daftar kendaraan di atasnya.
 
-Dua lapis, sama seperti `dynamic_array.py` (DynamicArray lalu ParkingSlots):
-
-* `BST` — strukturnya sendiri. Tiap simpul menyimpan satu data; semua
-  data di subpohon kiri kuncinya lebih kecil, semua yang di kanan lebih
-  besar. Invarian itulah yang membuat pencarian hanya menyusuri satu
-  jalur dari akar ke daun, O(h) dengan h = tinggi pohon.
-* `HistoryTree` — pemakaiannya di Smart Parking: riwayat check-out yang
-  terurut waktu keluar tanpa pernah memanggil sort.
-
-Catatan penting soal tinggi pohon ada di docstring `BST.height()`.
+Semua operasi di sini iteratif. Versi rekursifnya lebih ringkas, tapi
+kedalaman rekursinya sebesar tinggi pohon, dan pohon ini bisa merosot
+menjadi rantai sepanjang n kalau datanya masuk dalam keadaan terurut —
+di atas ~1000 catatan Python berhenti dengan RecursionError.
 """
 
 from collections.abc import Callable, Iterator
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
-from core.models import HistoryRecord
+from core.models import HistoryRecord, Vehicle
 
 
 class BSTNode:
@@ -31,12 +25,9 @@ class BSTNode:
 class BST:
     """Binary search tree: kiri lebih kecil, kanan lebih besar.
 
-    Urutan tidak diambil dari datanya langsung, tapi dari fungsi `key`.
-    Jadi pohon yang sama bisa dipakai untuk apa pun asal kuncinya bisa
-    dibandingkan dengan `<`. Tanpa `key`, datanya sendiri jadi kunci.
-
-    Dua kunci yang sama tidak bisa hidup berdampingan: yang baru menimpa
-    yang lama, sama seperti `HashTable.put()`.
+    Urutan diambil dari fungsi `key`, bukan dari datanya langsung, jadi
+    pohon ini bisa dipakai untuk apa pun asal kuncinya bisa dibandingkan.
+    Kunci yang sama ditimpa, seperti `HashTable.put()`.
     """
 
     def __init__(self, key: Callable[[Any], Any] | None = None) -> None:
@@ -52,46 +43,46 @@ class BST:
         return self._size
 
     def __iter__(self) -> Iterator[Any]:
-        """Jelajah in-order, jadi datanya keluar urut dari kecil ke besar."""
-        yield from self._in_order(self.root)
+        return iter(self.in_order())
 
     def is_empty(self) -> bool:
         return self.root is None
 
-    # ---- Sisip ----
+    def key_of(self, data: Any) -> Any:
+        """Kunci urutan sebuah data menurut pohon ini."""
+        return self._key(data)
+
+    # ---- Sisip & cari ----
 
     def insert(self, data: Any) -> None:
-        """Sisipkan data pada posisi yang menjaga invarian BST. O(h).
-
-        Rekursif: tiap panggilan mengembalikan akar subpohon yang sudah
-        diperbarui, lalu induknya memasang hasil itu sebagai anaknya.
-        Pola "kembalikan akar subpohon" ini membuat penyisipan tidak
-        perlu menyimpan pointer ke induk.
-        """
-        self.root = self._insert(self.root, data)
-
-    def _insert(self, node: BSTNode | None, data: Any) -> BSTNode:
-        if node is None:  # base case: ketemu tempat kosong
+        """Sisipkan data pada posisi yang menjaga invarian BST. O(h)."""
+        baru = self._key(data)
+        if self.root is None:
+            self.root = BSTNode(data)
             self._size += 1
-            return BSTNode(data)
+            return
 
-        baru, lama = self._key(data), self._key(node.data)
-        if baru < lama:
-            node.left = self._insert(node.left, data)
-        elif baru > lama:
-            node.right = self._insert(node.right, data)
-        else:
-            node.data = data  # kunci sama: timpa, ukuran tidak berubah
-        return node
-
-    # ---- Cari ----
+        node = self.root
+        while True:
+            lama = self._key(node.data)
+            if baru < lama:
+                if node.left is None:
+                    node.left = BSTNode(data)
+                    self._size += 1
+                    return
+                node = node.left
+            elif baru > lama:
+                if node.right is None:
+                    node.right = BSTNode(data)
+                    self._size += 1
+                    return
+                node = node.right
+            else:
+                node.data = data
+                return
 
     def search(self, key: Any) -> Any | None:
-        """Cari data berdasarkan kuncinya, None kalau tidak ada. O(h).
-
-        Iteratif, bukan rekursif: tiap langkah membuang separuh sisa
-        pohon, jadi tidak ada yang perlu diingat di stack pemanggilan.
-        """
+        """Cari data berdasarkan kuncinya, None kalau tidak ada. O(h)."""
         node = self.root
         while node is not None:
             lama = self._key(node.data)
@@ -101,7 +92,7 @@ class BST:
         return None
 
     def min(self) -> Any | None:
-        """Data berkunci terkecil: terus ke kiri sampai habis. O(h)."""
+        """Data berkunci terkecil. O(h)."""
         node = self.root
         if node is None:
             return None
@@ -110,7 +101,7 @@ class BST:
         return node.data
 
     def max(self) -> Any | None:
-        """Data berkunci terbesar: terus ke kanan sampai habis. O(h)."""
+        """Data berkunci terbesar. O(h)."""
         node = self.root
         if node is None:
             return None
@@ -119,76 +110,67 @@ class BST:
         return node.data
 
     def between(self, low: Any, high: Any) -> list[Any]:
-        """Seluruh data dengan kunci di rentang [low, high], terurut. O(h + k).
+        """Data dengan kunci di rentang [low, high], terurut. O(h + k).
 
-        Inilah yang tidak bisa dilakukan linked list tanpa memindai semua
-        simpul: begitu kunci sebuah simpul sudah di bawah `low`, seluruh
-        subpohon kirinya pasti di bawah `low` juga, jadi tidak dikunjungi.
+        Subpohon yang seluruh kuncinya di luar rentang tidak dikunjungi;
+        inilah yang tidak bisa dilakukan linked list.
         """
         hasil: list[Any] = []
-        self._between(self.root, low, high, hasil)
-        return hasil
-
-    def _between(self, node: BSTNode | None, low: Any, high: Any, hasil: list) -> None:
-        if node is None:
-            return
-        kunci = self._key(node.data)
-        if kunci > low:  # kiri masih mungkin berisi yang >= low
-            self._between(node.left, low, high, hasil)
-        if low <= kunci <= high:
+        tumpukan: list[BSTNode] = []
+        node = self.root
+        while node is not None or tumpukan:
+            while node is not None:
+                if self._key(node.data) < low:
+                    node = node.right  # simpul dan kiri-nya pasti di bawah low
+                else:
+                    tumpukan.append(node)
+                    node = node.left
+            if not tumpukan:
+                break
+            node = tumpukan.pop()
+            if self._key(node.data) > high:
+                break  # in-order menanjak, sisanya pasti di atas high
             hasil.append(node.data)
-        if kunci < high:  # kanan masih mungkin berisi yang <= high
-            self._between(node.right, low, high, hasil)
+            node = node.right
+        return hasil
 
     # ---- Hapus ----
 
     def remove(self, key: Any) -> Any | None:
         """Hapus data berkunci `key`, kembalikan yang terhapus. O(h).
 
-        Tiga kasus klasik BST:
-
-        1. Simpul daun — cukup dilepas.
-        2. Satu anak — anaknya naik menggantikan posisinya.
-        3. Dua anak — datanya ditimpa penerusnya (*successor*), yaitu
-           kunci terkecil di subpohon kanan, lalu penerus itu yang
-           dihapus dari subpohon kanan. Penerus dipilih karena dialah
-           satu-satunya data yang boleh duduk di posisi itu tanpa
-           merusak invarian: lebih besar dari seluruh kiri, lebih kecil
-           dari sisa kanan.
+        Tiga kasus: daun dilepas, satu anak naik menggantikan, dan dua
+        anak digantikan penerus (kunci terkecil di subpohon kanan).
         """
-        terhapus = self.search(key)
-        if terhapus is None:
-            return None
-        self.root = self._remove(self.root, key)
-        self._size -= 1
-        return terhapus
-
-    def _remove(self, node: BSTNode | None, key: Any) -> BSTNode | None:
+        induk: BSTNode | None = None
+        node = self.root
+        while node is not None and self._key(node.data) != key:
+            induk = node
+            node = node.left if key < self._key(node.data) else node.right
         if node is None:
             return None
 
-        lama = self._key(node.data)
-        if key < lama:
-            node.left = self._remove(node.left, key)
-            return node
-        if key > lama:
-            node.right = self._remove(node.right, key)
-            return node
+        terhapus = node.data
 
-        # Ketemu. Kasus 1 dan 2 sekaligus: kalau satu sisi kosong,
-        # sisi lain yang naik (None kalau dua-duanya kosong).
-        if node.left is None:
-            return node.right
-        if node.right is None:
-            return node.left
+        if node.left is not None and node.right is not None:
+            induk_penerus = node
+            penerus = node.right
+            while penerus.left is not None:
+                induk_penerus = penerus
+                penerus = penerus.left
+            node.data = penerus.data
+            induk, node = induk_penerus, penerus
 
-        # Kasus 3: ambil penerus dari subpohon kanan.
-        penerus = node.right
-        while penerus.left is not None:
-            penerus = penerus.left
-        node.data = penerus.data
-        node.right = self._remove(node.right, self._key(penerus.data))
-        return node
+        anak = node.left if node.left is not None else node.right
+        if induk is None:
+            self.root = anak
+        elif induk.left is node:
+            induk.left = anak
+        else:
+            induk.right = anak
+
+        self._size -= 1
+        return terhapus
 
     def remove_max(self) -> Any | None:
         """Hapus data berkunci terbesar. O(h)."""
@@ -197,60 +179,90 @@ class BST:
             return None
         return self.remove(self._key(terbesar))
 
-    # ---- Jelajah & bentuk pohon ----
+    # ---- Jelajah ----
 
     def in_order(self) -> list[Any]:
-        """Seluruh data terurut kecil ke besar. O(n), tanpa sorting.
-
-        Urutannya gratis dari bentuk pohonnya: kunjungi kiri, cetak
-        simpulnya, lalu kanan.
-        """
-        return list(self)
-
-    def _in_order(self, node: BSTNode | None) -> Iterator[Any]:
-        if node is None:
-            return
-        yield from self._in_order(node.left)
-        yield node.data
-        yield from self._in_order(node.right)
-
-    def pre_order(self) -> list[Any]:
-        """Simpul dulu, baru anaknya. Urutan ini menyalin bentuk pohon.
-
-        Menyisipkan ulang hasil pre-order ke pohon kosong menghasilkan
-        pohon yang bentuknya persis sama — tidak berlaku untuk in-order.
-        """
+        """Kiri, simpul, kanan. Hasilnya terurut kecil ke besar."""
         hasil: list[Any] = []
-        self._pre_order(self.root, hasil)
+        tumpukan: list[BSTNode] = []
+        node = self.root
+        while node is not None or tumpukan:
+            while node is not None:
+                tumpukan.append(node)
+                node = node.left
+            node = tumpukan.pop()
+            hasil.append(node.data)
+            node = node.right
         return hasil
 
-    def _pre_order(self, node: BSTNode | None, hasil: list) -> None:
-        if node is None:
-            return
-        hasil.append(node.data)
-        self._pre_order(node.left, hasil)
-        self._pre_order(node.right, hasil)
+    def pre_order(self) -> list[Any]:
+        """Simpul, kiri, kanan. Urutan ini menyalin bentuk pohon."""
+        if self.root is None:
+            return []
+        hasil: list[Any] = []
+        tumpukan: list[BSTNode] = [self.root]
+        while tumpukan:
+            node = tumpukan.pop()
+            hasil.append(node.data)
+            if node.right is not None:
+                tumpukan.append(node.right)
+            if node.left is not None:
+                tumpukan.append(node.left)
+        return hasil
+
+    def post_order(self) -> list[Any]:
+        """Kiri, kanan, simpul. Anak selalu keluar sebelum induknya."""
+        if self.root is None:
+            return []
+        hasil: list[Any] = []
+        tumpukan: list[BSTNode] = [self.root]
+        while tumpukan:
+            node = tumpukan.pop()
+            hasil.append(node.data)
+            if node.left is not None:
+                tumpukan.append(node.left)
+            if node.right is not None:
+                tumpukan.append(node.right)
+        hasil.reverse()
+        return hasil
+
+    def level_order(self) -> list[Any]:
+        """Jelajah per tingkat, dari akar ke bawah."""
+        if self.root is None:
+            return []
+        hasil: list[Any] = []
+        antrean: list[BSTNode] = [self.root]
+        i = 0
+        while i < len(antrean):
+            node = antrean[i]
+            i += 1
+            hasil.append(node.data)
+            if node.left is not None:
+                antrean.append(node.left)
+            if node.right is not None:
+                antrean.append(node.right)
+        return hasil
 
     def height(self) -> int:
         """Jumlah simpul di jalur terpanjang dari akar. Pohon kosong = 0.
 
-        Tinggi inilah yang menentukan biaya cari, sisip, dan hapus.
-        Pohon seimbang memberi h ≈ log2(n); kalau data disisipkan dalam
-        keadaan sudah terurut, tiap simpul baru selalu jatuh ke kanan
-        dan pohonnya merosot menjadi rantai dengan h = n — persis
-        secepat linked list, tidak lebih.
-
-        BST ini tidak menyeimbangkan diri sendiri. Jadi untuk riwayat
-        parkir yang memang lahir urut waktu, keuntungannya bukan di
-        tinggi pohon, melainkan di `between()`: linked list harus
-        memindai seluruh simpul untuk menjawab pertanyaan rentang waktu.
+        Tinggi inilah yang menentukan biaya cari, sisip, dan hapus. Pohon
+        seimbang memberi h ≈ log2(n), sedangkan data yang masuk dalam
+        keadaan terurut membuat h = n — secepat linked list, tidak lebih.
+        BST ini tidak menyeimbangkan diri sendiri.
         """
-        return self._height(self.root)
-
-    def _height(self, node: BSTNode | None) -> int:
-        if node is None:
+        if self.root is None:
             return 0
-        return 1 + max(self._height(node.left), self._height(node.right))
+        tertinggi = 0
+        tumpukan: list[tuple[BSTNode, int]] = [(self.root, 1)]
+        while tumpukan:
+            node, dalam = tumpukan.pop()
+            tertinggi = max(tertinggi, dalam)
+            if node.left is not None:
+                tumpukan.append((node.left, dalam + 1))
+            if node.right is not None:
+                tumpukan.append((node.right, dalam + 1))
+        return tertinggi
 
 
 def _diri_sendiri(data: Any) -> Any:
@@ -261,17 +273,8 @@ def _diri_sendiri(data: Any) -> Any:
 class HistoryTree:
     """Riwayat parkir berbasis BST, terurut waktu keluar.
 
-    Kuncinya pasangan `(exit_time, vehicle_id)`, bukan `exit_time` saja:
-    dua check-out bisa tercatat pada mikrodetik yang sama, dan kalau
-    kuncinya seri yang satu akan menimpa yang lain. `vehicle_id` memutus
-    seri itu, dan urutan waktunya tetap yang menentukan karena elemen
-    pertama tuple dibandingkan lebih dulu.
-
-    Inilah riwayat yang dipakai `ParkingSystem.history`. Antarmukanya
-    sengaja sama dengan `ParkingHistory` versi linked list (`add`,
-    `remove_last`, `size`, `display`) sehingga pertukarannya tidak
-    mengubah satu pun pemanggilan di `ParkingSystem`, ditambah
-    `between()` untuk pertanyaan rentang waktu.
+    Kuncinya `(exit_time, vehicle_id)`; tanpa `vehicle_id` dua check-out
+    pada waktu yang sama akan saling menimpa.
     """
 
     def __init__(self) -> None:
@@ -285,12 +288,16 @@ class HistoryTree:
     def size(self) -> int:
         return self._tree.size
 
+    @property
+    def root(self) -> BSTNode | None:
+        """Akar pohon, untuk menggambar bentuknya."""
+        return self._tree.root
+
     def __len__(self) -> int:
         return self._tree.size
 
     def __iter__(self) -> Iterator[HistoryRecord]:
-        """Riwayat dari yang paling lama ke yang paling baru."""
-        return iter(self._tree)
+        return iter(self._tree.in_order())
 
     def is_empty(self) -> bool:
         return self._tree.is_empty()
@@ -300,11 +307,7 @@ class HistoryTree:
         self._tree.insert(record)
 
     def remove_last(self) -> HistoryRecord | None:
-        """Hapus catatan terbaru, yaitu simpul paling kanan. O(h).
-
-        Dipakai undo check-out: kendaraannya dikembalikan ke slot, jadi
-        riwayat keluarnya harus ikut dibatalkan.
-        """
+        """Hapus catatan terbaru. Dipakai undo check-out. O(h)."""
         return self._tree.remove_max()
 
     def first(self) -> HistoryRecord | None:
@@ -316,12 +319,7 @@ class HistoryTree:
         return self._tree.max()
 
     def between(self, start: datetime, end: datetime) -> list[HistoryRecord]:
-        """Riwayat yang keluar antara `start` dan `end`, terurut. O(h + k).
-
-        Batas bawah memakai `vehicle_id` kosong dan batas atas memakai
-        karakter besar, supaya seluruh kendaraan pada detik batas ikut
-        terjaring berapa pun id-nya.
-        """
+        """Riwayat yang keluar antara `start` dan `end`, terurut. O(h + k)."""
         return self._tree.between((start, ""), (end, "￿"))
 
     def search(self, exit_time: datetime, vehicle_id: str) -> HistoryRecord | None:
@@ -329,15 +327,82 @@ class HistoryTree:
         return self._tree.search((exit_time, vehicle_id))
 
     def height(self) -> int:
-        """Tinggi pohon. Lihat `BST.height()` soal pohon yang merosot."""
+        """Tinggi pohon. Lihat `BST.height()`."""
         return self._tree.height()
 
     def display(self) -> list[HistoryRecord]:
-        """Seluruh riwayat, lama ke baru.
-
-        Beda dari `ParkingHistory.display()` yang mencetak ke stdout dan
-        mengembalikan None: di sini daftarnya dikembalikan, jadi bisa
-        langsung dipakai `ParkingSystem.show_history()` dan tabel di
-        `views/`.
-        """
+        """Seluruh riwayat, lama ke baru."""
         return self._tree.in_order()
+
+
+OrderBy = Literal["plate", "id"]
+
+
+class VehicleTree:
+    """Kendaraan terdaftar yang terurut nomor polisi atau ID."""
+
+    def __init__(self, order_by: OrderBy = "plate") -> None:
+        self.order_by: OrderBy = order_by
+        self._tree = BST(key=self._key_for(order_by))
+
+    @staticmethod
+    def _key_for(order_by: OrderBy) -> Callable[[Vehicle], str]:
+        return (lambda v: v.plate) if order_by == "plate" else (lambda v: v.vehicle_id)
+
+    @property
+    def size(self) -> int:
+        return self._tree.size
+
+    @property
+    def root(self) -> BSTNode | None:
+        """Akar pohon, untuk menggambar bentuknya."""
+        return self._tree.root
+
+    def __len__(self) -> int:
+        return self._tree.size
+
+    def __iter__(self) -> Iterator[Vehicle]:
+        return iter(self._tree.in_order())
+
+    def is_empty(self) -> bool:
+        return self._tree.is_empty()
+
+    def add(self, vehicle: Vehicle) -> None:
+        """Masukkan kendaraan ke pohon. O(h)."""
+        self._tree.insert(vehicle)
+
+    def remove(self, key: str) -> Vehicle | None:
+        """Keluarkan kendaraan berdasarkan kunci urutannya. O(h)."""
+        return self._tree.remove(key)
+
+    def search(self, key: str) -> Vehicle | None:
+        """Cari kendaraan lewat pohon, bukan lewat hash. O(h)."""
+        return self._tree.search(key)
+
+    def between(self, low: str, high: str) -> list[Vehicle]:
+        """Kendaraan dengan kunci di rentang [low, high]. O(h + k)."""
+        return self._tree.between(low, high)
+
+    def in_order(self) -> list[Vehicle]:
+        """Terurut naik — inilah daftar kendaraan terurut."""
+        return self._tree.in_order()
+
+    def pre_order(self) -> list[Vehicle]:
+        return self._tree.pre_order()
+
+    def post_order(self) -> list[Vehicle]:
+        return self._tree.post_order()
+
+    def level_order(self) -> list[Vehicle]:
+        return self._tree.level_order()
+
+    def height(self) -> int:
+        return self._tree.height()
+
+    def traversals(self) -> dict[str, list[Vehicle]]:
+        """Ketiga traversal sekaligus, untuk ditampilkan berdampingan."""
+        return {
+            "inorder": self.in_order(),
+            "preorder": self.pre_order(),
+            "postorder": self.post_order(),
+        }

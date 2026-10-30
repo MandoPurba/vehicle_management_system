@@ -8,6 +8,7 @@
 | `plate` | Plat nomor, unik |
 | `owner` | Nama pemilik |
 | `vtype` | `MOBIL` atau `MOTOR` |
+| `priority` | `DISABILITAS`, `DOSEN`, `TAMU`, atau `UMUM`. Menentukan urutan dilayani saat penuh |
 | `initial_status` | Kondisi awal yang diinginkan: `PARKED`, `WAITING`, atau `REGISTERED` |
 
 `vehicle_id` dibuat otomatis oleh `ParkingSystem.registrasi()` mengikuti
@@ -19,6 +20,10 @@ ditentukan sistem itu sendiri: baris `PARKED` mengisi slot sampai habis,
 sisanya otomatis masuk antrean.
 Karena itu **urutan baris menentukan hasil** — baris `PARKED` harus
 berada di atas baris `WAITING`.
+
+Waktu masuk kendaraan yang diparkir dimundurkan berjenjang oleh loader,
+karena `check_in()` selalu memberi waktu sekarang. Tanpa itu seluruh
+kendaraan demo berdurasi nol menit dan biayanya nol.
 
 Isinya 24 baris: 5 `PARKED`, 2 `WAITING`, dan 17 `REGISTERED`. Dengan
 `SLOT_CAPACITY = 5`, hasilnya 5 slot terisi, 2 kendaraan mengantre, dan 17

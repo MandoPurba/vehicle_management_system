@@ -6,16 +6,21 @@ data secara langsung, jadi invarian sistem tidak mungkin dilanggar dari sini.
 """
 
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import cast
 
-from core.models import Result, VehicleType
+from core.models import Priority, Result, VehicleType
 from core.services import ParkingSystem
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 DEFAULT_PATH = DATA_DIR / "sample_data.json"
 
 REQUIRED_FIELDS = ("plate", "owner", "vtype", "initial_status")
+
+# Jarak waktu masuk antar kendaraan yang diparkir, supaya durasi dan biaya
+# di demo tidak semuanya nol.
+JEDA_MASUK = timedelta(minutes=37)
 
 
 def read_rows(path: Path | str = DEFAULT_PATH) -> list[dict[str, str]]:
@@ -64,11 +69,28 @@ def load_sample_data(
                 row["plate"],
                 row["owner"],
                 cast(VehicleType, row["vtype"]),
+                cast(Priority, row.get("priority") or "UMUM"),
             )
         )
 
+    masuk: list[Result] = []
     for row in rows:
         if row["initial_status"].upper() != "REGISTERED":
-            results.append(system.check_in(row["plate"]))
+            masuk.append(system.check_in(row["plate"]))
+    results.extend(masuk)
 
+    _sebar_waktu_masuk(masuk)
     return results
+
+
+def _sebar_waktu_masuk(hasil: list[Result]) -> None:
+    """Mundurkan entry_time kendaraan yang parkir, berjenjang.
+
+    check_in selalu memberi waktu sekarang, jadi tanpa ini seluruh
+    kendaraan demo berdurasi nol menit dan biayanya nol.
+    """
+    sekarang = datetime.now()
+    terparkir = [r.data for r in hasil if r.ok and r.data is not None]
+    for urutan, kendaraan in enumerate(reversed(terparkir), start=1):
+        if kendaraan.entry_time is not None:
+            kendaraan.entry_time = sekarang - JEDA_MASUK * urutan
