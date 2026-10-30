@@ -726,7 +726,7 @@ def _render_struktur(system: ParkingSystem) -> None:
     )
     if rantai:
         st.code(
-            " → ".join(f"[{v.id} | {v.plate} | {STATUS_LABEL[v.status]}]" for v in rantai)
+            " → ".join(f"[{v.vehicle_id} | {v.plate} | {STATUS_LABEL[v.status]}]" for v in rantai)
             + " → None",
             language=None,
         )
