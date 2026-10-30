@@ -142,3 +142,10 @@ def test_fungsi_rekursif_dipakai_statistik_sistem() -> None:
     assert max_duration_recursive(riwayat) == 360
     assert sum_costs_recursive([]) == 0
     assert max_duration_recursive([]) == 0
+
+    awal = datetime(2026, 10, 31, 8, 0, 0)
+    banyak = [
+        HistoryRecord(f"V{i:04d}", f"B {i} XX", "A01", awal, awal + timedelta(hours=1), "MOBIL")
+        for i in range(1200)
+    ]
+    assert sum_costs_recursive(banyak) == sum(r.cost for r in banyak)
