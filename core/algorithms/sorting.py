@@ -108,8 +108,21 @@ SORT_KEYS: dict[str, KeyFunc] = {
     "plate": lambda r: r.plate,
 }
 
+ALGORITHMS: dict[str, Callable[[list, KeyFunc | None], list]] = {
+    "merge": merge_sort,
+    "quick": quick_sort,
+    "insertion": insertion_sort,
+    "bubble": bubble_sort,
+}
 
-def sort_history(records: list, by: SortBy = "entry_time", descending: bool = False) -> list:
+
+def sort_history(
+    records: list,
+    by: SortBy = "entry_time",
+    descending: bool = False,
+    algorithm: str = "merge",
+) -> list:
     """Urutkan riwayat parkir menurut waktu, durasi, biaya, atau plat."""
-    hasil = merge_sort(records, key=SORT_KEYS[by])
+    fungsi = ALGORITHMS.get(algorithm, merge_sort)
+    hasil = fungsi(records, key=SORT_KEYS[by])
     return hasil[::-1] if descending else hasil

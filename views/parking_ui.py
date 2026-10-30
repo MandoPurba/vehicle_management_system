@@ -4,7 +4,8 @@ Lapisan ini hanya memanggil ParkingSystem lalu menampilkan isi Result.
 Semua logika parkir tetap di core/.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
+from time import perf_counter
 from typing import cast
 
 import streamlit as st
@@ -48,6 +49,12 @@ SORT_LABELS: dict[str, str] = {
     "duration": "Durasi parkir",
     "cost": "Biaya",
     "plate": "Plat nomor",
+}
+ALGO_LABELS: dict[str, str] = {
+    "merge": "Merge Sort — O(n log n) stabil",
+    "quick": "Quick Sort — O(n log n) rata-rata",
+    "insertion": "Insertion Sort — O(n²)",
+    "bubble": "Bubble Sort — O(n²)",
 }
 STATUS_LABEL = charts.STATUS_LABEL
 SLOTS_PER_ROW = 5
@@ -512,18 +519,29 @@ def _render_history(system: ParkingSystem) -> None:
         st.caption("Belum ada riwayat parkir.")
         return
 
-    kolom = st.columns([2, 1, 1])
+    kolom = st.columns([2, 2, 1, 1])
     by = kolom[0].selectbox(
         "Urutkan berdasarkan",
         list(SORT_LABELS),
         format_func=lambda k: SORT_LABELS[k],
         key="hist_sort",
     )
-    turun = kolom[1].toggle("Menurun", key="hist_desc")
-    kolom[2].metric("Catatan", len(records))
+    algo = kolom[1].selectbox(
+        "Algoritma pengurutan",
+        list(ALGO_LABELS),
+        format_func=lambda k: ALGO_LABELS[k],
+        key="hist_algo",
+    )
+    turun = kolom[2].toggle("Menurun", key="hist_desc")
+    kolom[3].metric("Catatan", len(records))
 
-    terurut = sort_history(records, by=cast(SortBy, by), descending=turun)
-    st.caption("Diurutkan dengan merge sort O(n log n) di `core/algorithms/sorting.py`.")
+    t0 = perf_counter()
+    terurut = sort_history(records, by=cast(SortBy, by), descending=turun, algorithm=algo)
+    durasi_ms = (perf_counter() - t0) * 1000
+    st.caption(
+        f"Diurutkan dengan **{ALGO_LABELS[algo]}** di `core/algorithms/sorting.py` "
+        f"dalam **{durasi_ms:.3f} ms**."
+    )
     st.dataframe(
         [
             {
@@ -540,6 +558,49 @@ def _render_history(system: ParkingSystem) -> None:
         hide_index=True,
         width="stretch",
     )
+
+    st.divider()
+    st.subheader("Query rentang waktu keluar (HistoryTree.between)")
+    st.caption(
+        "Memangkas cabang BST riwayat di luar rentang waktu keluar `[start, end]` "
+        "tanpa memindai seluruh simpul."
+    )
+    waktu_keluar = [r.exit_time for r in records]
+    min_dt, max_dt = min(waktu_keluar), max(waktu_keluar)
+    kolom_r = st.columns(2)
+    t_mulai = kolom_r[0].time_input(
+        "Dari jam keluar",
+        value=time(min_dt.hour, min_dt.minute),
+        key="hist_range_start",
+    )
+    t_akhir = kolom_r[1].time_input(
+        "Sampai jam keluar",
+        value=time(max_dt.hour, min(59, max_dt.minute + 1)),
+        key="hist_range_end",
+    )
+    dt_mulai = datetime.combine(min_dt.date(), t_mulai)
+    dt_akhir = datetime.combine(max_dt.date(), t_akhir).replace(second=59, microsecond=999999)
+    hasil_rentang = system.history.between(dt_mulai, dt_akhir)
+    st.caption(
+        f"Ditemukan **{len(hasil_rentang)}** dari {len(records)} catatan pada rentang "
+        f"`{dt_mulai.strftime('%H:%M:%S')}` – `{dt_akhir.strftime('%H:%M:%S')}`."
+    )
+    if hasil_rentang:
+        st.dataframe(
+            [
+                {
+                    "ID": r.vehicle_id,
+                    "Plat": r.plate,
+                    "Slot": r.slot_code,
+                    "Keluar": _clock(r.exit_time),
+                    "Durasi (menit)": r.duration_minutes,
+                    "Biaya": _rupiah(r.cost),
+                }
+                for r in hasil_rentang
+            ],
+            hide_index=True,
+            width="stretch",
+        )
 
     st.divider()
     st.subheader("Binary search pada riwayat terurut")
@@ -624,6 +685,51 @@ def _render_struktur(system: ParkingSystem) -> None:
         "diri; keuntungannya di traversal terurut dan query rentang, bukan "
         "di tinggi pohon."
     )
+
+    st.divider()
+    st.subheader("Isi tumpukan UndoStack (LIFO)")
+    tumpukan = system.undo.display()
+    puncak = system.undo.peek()
+    kolom_u = st.columns(3)
+    kolom_u[0].metric("Ukuran stack", len(tumpukan))
+    kolom_u[1].metric("Transaksi puncak (TOP)", puncak.tx_type if puncak else "-")
+    kolom_u[2].metric("Kendaraan puncak", puncak.vehicle_id if puncak else "-")
+    st.caption(
+        "`UndoStack` menyimpan transaksi dalam singly linked list di kepala (`_top`), "
+        "sehingga `push`, `pop`, dan `peek` berjalan O(1)."
+    )
+    if tumpukan:
+        st.dataframe(
+            [
+                {
+                    "Posisi": "TOP (0)" if i == 0 else str(i),
+                    "Tipe transaksi": tx.tx_type,
+                    "ID kendaraan": tx.vehicle_id,
+                    "Slot": slot_code(tx.slot_index) if tx.slot_index is not None else "-",
+                    "Promosi antrean": tx.promoted_id or "-",
+                    "Waktu": _clock(tx.time),
+                }
+                for i, tx in enumerate(tumpukan)
+            ],
+            hide_index=True,
+            width="stretch",
+        )
+    else:
+        st.caption("Tumpukan undo kosong.")
+
+    st.divider()
+    st.subheader("Rantai VehicleList (Singly Linked List)")
+    rantai = system.vehicles.display()
+    st.caption(
+        f"`VehicleList` menyimpan **{len(rantai)}** kendaraan terdaftar dalam "
+        "singly linked list (`_head` → `next` → ... → `None`)."
+    )
+    if rantai:
+        st.code(
+            " → ".join(f"[{v.vehicle_id} | {v.plate} | {STATUS_LABEL[v.status]}]" for v in rantai)
+            + " → None",
+            language=None,
+        )
 
 
 # ---- Halaman: Benchmark ----
