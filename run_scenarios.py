@@ -165,7 +165,7 @@ def run_all() -> list[tuple[int, str, str, str, str]]:
     results.append((19, "Recursion", "Recursion pada 1.200 riwayat", "Total biaya tanpa batas recursion", status19))
 
     # 20. Hash Table Collision handling
-    ht = HashTable(capacity=4, auto_rehash=False)
+    ht = HashTable(capacity=1, auto_rehash=False)
     ht.put("kunci1", "val1")
     ht.put("kunci2", "val2")
     ht.put("kunci3", "val3")
@@ -185,8 +185,8 @@ def run_all() -> list[tuple[int, str, str, str, str]]:
 
     # 22. Graph Dijkstra Shortest Path
     peta = build_map()
-    jalur22, dist22 = peta.shortest_path("Gerbang Utama", "Blok A")
-    status22 = "PASS" if dist22 == 50 and jalur22 == ["Gerbang Utama", "Blok A"] else "FAIL"
+    jalur22, dist22 = peta.shortest_path("GERBANG_UTAMA", "BLOK_A")
+    status22 = "PASS" if dist22 == 50 and jalur22 == ["GERBANG_UTAMA", "BLOK_A"] else "FAIL"
     results.append((22, "Graph", "Dijkstra shortest path", "Rute & jarak terpendek akurat", status22))
 
     # 23. Graph Disconnected Node
