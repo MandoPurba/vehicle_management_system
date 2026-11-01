@@ -30,6 +30,14 @@ PRIORITY_LABEL: dict[str, str] = {
 }
 DEFAULT_PRIORITY: Priority = "UMUM"
 
+# Status dalam bahasa Indonesia, dipakai pesan Result dan tampilan.
+STATUS_LABEL: dict[str, str] = {
+    "REGISTERED": "terdaftar",
+    "PARKED": "parkir",
+    "WAITING": "antre",
+    "EXITED": "keluar",
+}
+
 def slot_code(idx: int) -> str:
     """0 -> 'A01', 4 -> 'A05'."""
     return f"A{idx + 1:02d}"
@@ -61,6 +69,7 @@ __all__ = [
     "MIN_SLOT_CAPACITY",
     "PRIORITY_LABEL",
     "PRIORITY_RANK",
+    "STATUS_LABEL",
     "SLOT_CAPACITY",
     "HistoryRecord",
     "Priority",

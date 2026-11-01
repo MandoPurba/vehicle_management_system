@@ -87,6 +87,15 @@ def test_urut_riwayat_menurut_waktu_durasi_dan_plat() -> None:
     assert [r.plate for r in sort_history(riwayat, "plate")] == ["B 1 AAA", "B 2 BBB", "B 3 CCC"]
     menurun = sort_history(riwayat, "duration", descending=True)
     assert menurun[0].plate == "B 2 BBB"
+    # Keempat algoritma harus memberi urutan yang sama persis.
+    for algo in ("merge", "quick", "insertion", "bubble"):
+        assert [r.plate for r in sort_history(riwayat, "duration", algorithm=algo)] == [
+            "B 1 AAA",
+            "B 3 CCC",
+            "B 2 BBB",
+        ]
+    # Algoritma yang tidak dikenal jatuh ke merge sort, bukan error.
+    assert sort_history(riwayat, "duration", algorithm="entah") == sort_history(riwayat, "duration")
 
 
 def test_cari_riwayat_lewat_binary_search() -> None:
@@ -113,3 +122,12 @@ def test_fungsi_rekursif_dipakai_statistik_sistem() -> None:
     riwayat = _riwayat()
     assert max_duration_recursive(riwayat) == 360
     assert max_duration_recursive([]) == 0
+
+    awal = datetime(2026, 10, 31, 8, 0, 0)
+    banyak = [
+        HistoryRecord(f"V{i:04d}", f"B {i} XX", "A01", awal, awal + timedelta(hours=1), "MOBIL")
+        for i in range(1200)
+    ]
+    # 1.200 riwayat: rekursi linear akan kena batas ~1000 frame Python,
+    # versi bagi-dua kedalamannya hanya O(log n).
+    assert max_duration_recursive(banyak) == 60

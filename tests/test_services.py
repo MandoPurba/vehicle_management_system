@@ -65,7 +65,7 @@ def test_check_in_dua_kali_ditolak() -> None:
     hasil = system.check_in("B 1 AAA")
 
     assert not hasil.ok
-    assert "sudah PARKED" in hasil.message
+    assert "sudah parkir" in hasil.message
 
 
 def test_kendaraan_yang_mengantre_tidak_bisa_check_in_lagi() -> None:
@@ -78,7 +78,7 @@ def test_kendaraan_yang_mengantre_tidak_bisa_check_in_lagi() -> None:
     hasil = system.check_in("B 2 BBB")
 
     assert not hasil.ok
-    assert "sudah WAITING" in hasil.message
+    assert "sudah antre" in hasil.message
     assert system.queue.size == 1
 
 
