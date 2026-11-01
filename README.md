@@ -57,6 +57,9 @@ Tiap fitur dipetakan ke satu struktur data:
 ```
 vehicle_management_system/
 ├── app.py              # Entry point Streamlit
+├── Dockerfile          # Image aplikasi
+├── docker-compose.yml  # Aplikasi + jaringan tunnel
+├── .streamlit/         # config.toml
 ├── core/
 │   ├── services.py     # ParkingSystem — facade seluruh operasi
 │   ├── persistence.py  # Simpan & muat state ke data/state.json
@@ -187,6 +190,50 @@ Setiap operasi yang mengubah state menulis `data/state.json`, termasuk
 jumlah slotnya. Sesi berikutnya membaca file itu dan membangun ulang
 indeks hash plat serta id. Tombol **Reset sistem** menulis snapshot
 kosong dengan jumlah slot yang sedang dipakai.
+
+### Dengan Docker, lewat Cloudflare Tunnel
+
+Container cloudflared diurus di luar project ini; compose hanya
+menjalankan aplikasinya lalu menempelkannya ke jaringan Docker yang sama
+supaya tunnel bisa menjangkaunya.
+
+```bash
+docker network create tunel      # kalau jaringannya belum ada
+docker compose up -d --build
+docker compose logs -f app
+```
+
+Lalu di dashboard Cloudflare Zero Trust, arahkan public hostname ke:
+
+```
+http://smart-parking:8501
+```
+
+Nama itu adalah alias jaringan di `docker-compose.yml`, bukan nama
+container, jadi tetap berlaku walau container-nya diganti nama. Port
+8501 juga diikat ke `127.0.0.1` supaya bisa diperiksa langsung dari
+mesin sendiri tanpa membuka port ke jaringan luar.
+
+| Hal | Keterangan |
+| --- | --- |
+| Jaringan | `tunel`, dideklarasikan `external` karena dibuat di luar compose |
+| State | Volume `state` di `/app/state`, bukan di `/app/data`, supaya tidak menutupi `sample_data.json` yang ikut di dalam image |
+| Lokasi state | Diatur env `PARKIR_STATE_PATH`; default tetap `data/state.json` saat jalan di luar container |
+| User | Non-root (uid 10001) |
+| Healthcheck | `/_stcore/health`, diperiksa pakai `urllib` agar image tidak perlu `curl` |
+
+**Proteksi XSRF dan CORS Streamlit dimatikan di compose.** Hostname
+publik datang dari Cloudflare dan berbeda dari alamat yang didengarkan
+Streamlit, jadi kalau dibiarkan menyala permintaannya ditolak terus.
+Untuk menyalakannya kembali, isi `PUBLIC_HOSTNAME` di `.env` dengan
+hostname tunnel-mu lalu hapus dua baris `ENABLE_CORS` dan
+`ENABLE_XSRF_PROTECTION` di `docker-compose.yml`.
+
+**Aplikasi ini tidak punya autentikasi.** Begitu tunnel-nya hidup,
+siapa pun yang punya URL-nya bisa mendaftarkan kendaraan, menekan Reset
+sistem, dan menjalankan benchmark. Untuk demo kelas tidak masalah, tapi
+jangan ditinggal hidup lebih lama dari perlunya. Cloudflare Access bisa
+dipasang di depan hostname itu kalau mau dibatasi.
 
 Menjalankan test:
 

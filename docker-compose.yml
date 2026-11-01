@@ -1,0 +1,52 @@
+# Smart Parking: aplikasi Streamlit yang dijangkau cloudflared lewat
+# jaringan Docker `tunel`.
+#
+#   docker compose up -d --build
+#   docker compose logs -f app
+#
+# Tunnel-nya tidak diurus file ini — container cloudflared sudah jalan
+# sendiri dan hanya perlu berada di jaringan yang sama. Di dashboard
+# Cloudflare Zero Trust, arahkan public hostname ke:
+#
+#   http://smart-parking:8501
+#
+# Nama itu berasal dari alias jaringan di bawah, bukan dari nama
+# container, jadi tetap bisa dipakai walau container-nya diganti nama.
+
+name: smart-parking
+
+services:
+  app:
+    build: .
+    image: smart-parking:latest
+    container_name: smart-parking
+    environment:
+      # Hostname publik datang dari Cloudflare, bukan dari alamat yang
+      # didengarkan Streamlit, jadi pemeriksaan asal-origin ditolak terus
+      # kalau dibiarkan menyala. Isi PUBLIC_HOSTNAME di .env untuk
+      # menyalakannya kembali — caranya ada di README.
+      STREAMLIT_SERVER_ENABLE_CORS: "false"
+      STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION: "false"
+      STREAMLIT_BROWSER_SERVER_ADDRESS: ${PUBLIC_HOSTNAME:-localhost}
+    volumes:
+      # Hanya state yang berubah yang keluar dari container; kode dan
+      # data contoh tetap di dalam image.
+      - state:/app/state
+    ports:
+      # Diikat ke localhost untuk memeriksa langsung dari mesin ini.
+      # Akses dari luar lewat tunnel, bukan lewat port mesin yang dibuka.
+      - "127.0.0.1:8501:8501"
+    networks:
+      tunel:
+        aliases:
+          - smart-parking
+    restart: unless-stopped
+
+networks:
+  # Dibuat di luar compose, dipakai bersama container cloudflared.
+  # Di mesin yang belum punya: docker network create tunel
+  tunel:
+    external: true
+
+volumes:
+  state:
