@@ -46,7 +46,6 @@ SORT_LABELS: dict[str, str] = {
     "entry_time": "Waktu masuk",
     "exit_time": "Waktu keluar",
     "duration": "Durasi parkir",
-    "cost": "Biaya",
     "plate": "Plat nomor",
 }
 ALGO_LABELS: dict[str, str] = {
@@ -573,7 +572,6 @@ def _render_history(system: ParkingSystem) -> None:
                     "Slot": r.slot_code,
                     "Keluar": _clock(r.exit_time),
                     "Durasi (menit)": r.duration_minutes,
-                    "Biaya": _rupiah(r.cost),
                 }
                 for r in hasil_rentang
             ],

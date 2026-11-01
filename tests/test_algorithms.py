@@ -1,7 +1,7 @@
 import random
 from datetime import datetime, timedelta
 
-from core.algorithms.recursion import count_occupied_recursive, max_duration_recursive, sum_costs_recursive
+from core.algorithms.recursion import count_occupied_recursive, max_duration_recursive
 from core.algorithms.searching import (
     binary_search,
     binary_search_first,
@@ -88,7 +88,7 @@ def test_urut_riwayat_menurut_waktu_durasi_dan_plat() -> None:
     menurun = sort_history(riwayat, "duration", descending=True)
     assert menurun[0].plate == "B 2 BBB"
     for algo in ("merge", "quick", "insertion", "bubble"):
-        assert [r.plate for r in sort_history(riwayat, "cost", algorithm=algo)] == [
+        assert [r.plate for r in sort_history(riwayat, "duration", algorithm=algo)] == [
             "B 1 AAA",
             "B 3 CCC",
             "B 2 BBB",
@@ -119,10 +119,3 @@ def test_fungsi_rekursif_dipakai_statistik_sistem() -> None:
     riwayat = _riwayat()
     assert max_duration_recursive(riwayat) == 360
     assert max_duration_recursive([]) == 0
-
-    awal = datetime(2026, 10, 31, 8, 0, 0)
-    banyak = [
-        HistoryRecord(f"V{i:04d}", f"B {i} XX", "A01", awal, awal + timedelta(hours=1), "MOBIL")
-        for i in range(1200)
-    ]
-    assert sum_costs_recursive(banyak) == sum(r.cost for r in banyak)

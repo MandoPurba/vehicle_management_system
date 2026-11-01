@@ -104,7 +104,6 @@ SORT_KEYS: dict[str, KeyFunc] = {
     "entry_time": lambda r: r.entry_time,
     "exit_time": lambda r: r.exit_time,
     "duration": lambda r: r.duration,
-    "cost": lambda r: r.cost,
     "plate": lambda r: r.plate,
 }
 
