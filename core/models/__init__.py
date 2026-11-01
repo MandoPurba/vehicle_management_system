@@ -9,7 +9,7 @@ TxType = Literal["CHECK_IN", "ENQUEUE", "CHECK_OUT"]
 SearchBy = Literal["id", "plate", "owner"]
 VehicleType = Literal["MOTOR", "MOBIL"]
 Priority = Literal["DISABILITAS", "DOSEN", "TAMU", "UMUM"]
-SortBy = Literal["entry_time", "exit_time", "duration", "plate"]
+SortBy = Literal["entry_time", "exit_time", "duration", "cost", "plate"]
 
 SLOT_CAPACITY: int = 5  # A01-A05, kecil agar kondisi penuh mudah didemokan
 MIN_SLOT_CAPACITY: int = 1  # satu slot pun masih sistem parkir yang sah
