@@ -1,5 +1,3 @@
-from datetime import timedelta
-from math import ceil
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
@@ -11,7 +9,7 @@ TxType = Literal["CHECK_IN", "ENQUEUE", "CHECK_OUT"]
 SearchBy = Literal["id", "plate", "owner"]
 VehicleType = Literal["MOTOR", "MOBIL"]
 Priority = Literal["DISABILITAS", "DOSEN", "TAMU", "UMUM"]
-SortBy = Literal["entry_time", "exit_time", "duration", "cost", "plate"]
+SortBy = Literal["entry_time", "exit_time", "duration", "plate"]
 
 SLOT_CAPACITY: int = 5  # A01-A05, kecil agar kondisi penuh mudah didemokan
 MIN_SLOT_CAPACITY: int = 1  # satu slot pun masih sistem parkir yang sah
@@ -32,11 +30,6 @@ PRIORITY_LABEL: dict[str, str] = {
 }
 DEFAULT_PRIORITY: Priority = "UMUM"
 
-# Tarif parkir kampus: nominal, dihitung proporsional per menit.
-TARIF_PER_JAM: dict[str, int] = {"MOBIL": 2000, "MOTOR": 1000}
-PEMBULATAN_RUPIAH: int = 100
-
-
 def slot_code(idx: int) -> str:
     """0 -> 'A01', 4 -> 'A05'."""
     return f"A{idx + 1:02d}"
@@ -45,20 +38,6 @@ def slot_code(idx: int) -> str:
 def priority_rank(priority: str) -> int:
     """Angka urutan layanan sebuah prioritas. Yang tidak dikenal jadi UMUM."""
     return PRIORITY_RANK.get(priority, PRIORITY_RANK[DEFAULT_PRIORITY])
-
-
-def hitung_biaya(vtype: str, durasi: timedelta) -> int:
-    """Biaya parkir kampus: proporsional per menit, bukan per jam penuh.
-
-    Dibulatkan ke atas ke ratusan rupiah terdekat. Kendaraan yang keluar
-    tanpa sempat parkir tidak ditagih.
-    """
-    menit = durasi.total_seconds() / 60
-    if menit <= 0:
-        return 0
-    tarif = TARIF_PER_JAM.get(vtype, TARIF_PER_JAM["MOBIL"])
-    kasar = tarif * menit / 60
-    return max(PEMBULATAN_RUPIAH, ceil(kasar / PEMBULATAN_RUPIAH) * PEMBULATAN_RUPIAH)
 
 
 def count_occupied(slots: "ParkingSlots") -> int:
@@ -83,8 +62,6 @@ __all__ = [
     "PRIORITY_LABEL",
     "PRIORITY_RANK",
     "SLOT_CAPACITY",
-    "PEMBULATAN_RUPIAH",
-    "TARIF_PER_JAM",
     "HistoryRecord",
     "Priority",
     "Result",
@@ -96,7 +73,6 @@ __all__ = [
     "VehicleStatus",
     "VehicleType",
     "count_occupied",
-    "hitung_biaya",
     "priority_rank",
     "slot_code",
 ]

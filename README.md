@@ -17,7 +17,7 @@ Struktur Data (DS01).
 | Pencarian | Mencari kendaraan berdasarkan plat, ID, atau pemilik |
 | Undo | Membatalkan transaksi terakhir (check-in / antre / check-out) |
 | Laporan | Status slot, isi antrean, riwayat parkir, dan statistik |
-| Statistik rekursif | `count_occupied_recursive`, `sum_costs_recursive`, `max_duration_recursive` |
+| Statistik rekursif | `count_occupied_recursive` dan `max_duration_recursive` |
 | Ubah jumlah slot | Memperbesar atau memperkecil parkiran saat aplikasi jalan |
 | Reset | Mengosongkan seluruh state sistem, jumlah slot tetap |
 | Data contoh | Mengisi sistem dari `data/sample_data.json` sekali klik |
@@ -30,8 +30,8 @@ Struktur Data (DS01).
 | 2 | Daftar kendaraan terurut | BST | `core/structures/bst.py` (`VehicleTree`); tab **Kendaraan (BST)** menampilkan inorder, preorder, postorder, dan gambar percabangannya |
 | 3 | Parkir prioritas | Heap | `core/structures/heap.py`; empat level prioritas (disabilitas, dosen, tamu, umum) di tab **Antrean** |
 | 4 | Peta area parkir dan rute | Graph | `core/structures/graph.py` + `core/parking_map.py`; tab **Slot & peta** menampilkan slot kosong terdekat dari gerbang/gedung beserta gambar petanya |
-| 5 | Pengurutan riwayat parkir | Sorting & Searching | `core/algorithms/sorting.py` dan `searching.py`; tab **Riwayat** mengurutkan menurut waktu, durasi, atau biaya lalu binary search di atasnya |
-| 6 | Dashboard statistik | Recursion + visualisasi | tab **Dashboard**: kartu ringkasan, lima grafik, dan tiga angka yang dihitung rekursif |
+| 5 | Pengurutan riwayat parkir | Sorting & Searching | `core/algorithms/sorting.py` dan `searching.py`; tab **Riwayat** mengurutkan menurut waktu masuk, waktu keluar, durasi, atau plat lalu binary search di atasnya |
+| 6 | Dashboard statistik | Recursion + visualisasi | tab **Dashboard**: kartu ringkasan, empat grafik, dan dua angka yang dihitung rekursif |
 | 7 | Halaman benchmark | Analisis kompleksitas | `core/benchmark.py`; tab **Benchmark** mengukur n = 1.000 / 10.000 / 100.000 |
 
 ## Struktur data yang dipakai
@@ -99,9 +99,9 @@ sama bisa saling menyalip. Undo enqueue mencabut kendaraan yang
 ditunjuk, bukan yang paling belakang, karena heap tidak punya
 "belakang".
 
-**Tarif parkir kampus proporsional per menit**, dibulatkan ke ratusan
-rupiah, dan kendaraan yang keluar tanpa sempat parkir tidak ditagih.
-Bukan tarif per jam penuh seperti parkir umum.
+**Tidak ada tarif maupun tagihan.** Ini parkir kampus, bukan parkir
+komersial: sistem hanya mencatat kapan kendaraan masuk dan keluar
+beserta durasinya.
 
 **Rehash hash table bisa dimatikan** lewat `HashTable(auto_rehash=False)`.
 Dipakai test dan demo collision: dengan rehash menyala, rantai tabrakan

@@ -23,7 +23,7 @@ berada di atas baris `WAITING`.
 
 Waktu masuk kendaraan yang diparkir dimundurkan berjenjang oleh loader,
 karena `check_in()` selalu memberi waktu sekarang. Tanpa itu seluruh
-kendaraan demo berdurasi nol menit dan biayanya nol.
+kendaraan demo berdurasi nol menit.
 
 Isinya 24 baris: 5 `PARKED`, 2 `WAITING`, dan 17 `REGISTERED`. Dengan
 `SLOT_CAPACITY = 5`, hasilnya 5 slot terisi, 2 kendaraan mengantre, dan 17

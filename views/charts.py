@@ -63,16 +63,6 @@ def checkout_per_jam(records: list[HistoryRecord]) -> pd.DataFrame:
     return pd.DataFrame({"Check-out": [jumlah[j] for j in jam]}, index=jam)
 
 
-def pendapatan_per_jam(records: list[HistoryRecord]) -> pd.DataFrame:
-    """Total biaya parkir per jam check-out."""
-    total: dict[str, int] = {}
-    for r in records:
-        kunci = _jam_label(r.exit_time)
-        total[kunci] = total.get(kunci, 0) + r.cost
-    jam = sorted(total)
-    return pd.DataFrame({"Pendapatan (Rp)": [total[j] for j in jam]}, index=jam)
-
-
 def durasi_per_kendaraan(records: list[HistoryRecord]) -> pd.DataFrame:
     """Lama parkir tiap catatan riwayat, dalam menit."""
     return pd.DataFrame(
