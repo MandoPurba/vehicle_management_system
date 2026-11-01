@@ -7,6 +7,7 @@ HistoryTree.
 """
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import cast
@@ -24,7 +25,10 @@ from core.models import (
 from core.services import ParkingSystem
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
-STATE_PATH = DATA_DIR / "state.json"
+
+# Lokasi state bisa dipindah lewat env, dipakai saat jalan di container
+# agar data yang berubah tinggal di volume terpisah dari kode.
+STATE_PATH = Path(os.environ.get("PARKIR_STATE_PATH") or DATA_DIR / "state.json")
 
 _SNAPSHOT_KEYS = ("capacity", "vehicles", "slots", "queue", "history", "undo")
 

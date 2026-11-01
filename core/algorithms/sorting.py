@@ -1,7 +1,7 @@
 """Algoritma pengurutan, ditulis sendiri tanpa list.sort()."""
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Protocol
 
 from core.models import SortBy
 
@@ -104,11 +104,16 @@ SORT_KEYS: dict[str, KeyFunc] = {
     "entry_time": lambda r: r.entry_time,
     "exit_time": lambda r: r.exit_time,
     "duration": lambda r: r.duration,
-    "cost": lambda r: r.cost,
     "plate": lambda r: r.plate,
 }
 
-ALGORITHMS: dict[str, Callable[[list, KeyFunc | None], list]] = {
+class SortFunc(Protocol):
+    """Tanda tangan algoritma pengurutan di modul ini."""
+
+    def __call__(self, items: list, key: KeyFunc | None = None) -> list: ...
+
+
+ALGORITHMS: dict[str, SortFunc] = {
     "merge": merge_sort,
     "quick": quick_sort,
     "insertion": insertion_sort,
@@ -122,7 +127,7 @@ def sort_history(
     descending: bool = False,
     algorithm: str = "merge",
 ) -> list:
-    """Urutkan riwayat parkir menurut waktu, durasi, biaya, atau plat."""
+    """Urutkan riwayat menurut waktu masuk, waktu keluar, durasi, atau plat."""
     fungsi = ALGORITHMS.get(algorithm, merge_sort)
     hasil = fungsi(records, key=SORT_KEYS[by])
     return hasil[::-1] if descending else hasil

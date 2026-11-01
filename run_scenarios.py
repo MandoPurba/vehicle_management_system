@@ -6,7 +6,7 @@ Mengeksekusi skenario 1-24 secara otomatis dan mencetak tabel hasil PASS/FAIL.
 from datetime import datetime, timedelta
 import sys
 
-from core.algorithms.recursion import count_occupied_recursive, sum_costs_recursive
+from core.algorithms.recursion import count_occupied_recursive, max_duration_recursive
 from core.benchmark import run_benchmark
 from core.models import HistoryRecord, Priority, VehicleType
 from core.parking_map import build_map, slot_terdekat
@@ -14,6 +14,15 @@ from core.services import ParkingSystem
 from core.structures.bst import VehicleTree
 from core.structures.graph import Graph
 from core.structures.hash_table import HashTable
+
+
+def _waktu(rows: list[dict], struktur: str, n: int) -> float | None:
+    """Ambil waktu satu baris benchmark. run_benchmark mengembalikan daftar
+    baris, bukan dict bersarang, jadi barisnya dicari dulu."""
+    for row in rows:
+        if row["struktur"] == struktur and row["n"] == n:
+            return row["detik"]
+    return None
 
 
 def run_all() -> list[tuple[int, str, str, str, str]]:
@@ -82,19 +91,25 @@ def run_all() -> list[tuple[int, str, str, str, str]]:
     results.append((8, "Min Heap", "Check-out dengan promosi prioritas", "B 2003 DB naik ke A02", status8))
 
     # 9. Pencarian data ada
-    s_plate = system.search("plate", "B 1001 AA")
-    s_owner = system.search("owner", "Andi")
+    s_plate = system.search("B 1001 AA", by="plate")
+    s_owner = system.search("Andi", by="owner")
     status9 = "PASS" if s_plate.ok and s_owner.ok else "FAIL"
     results.append((9, "Hash Table", "Pencarian plat dan pemilik (ada)", "Ditemukan", status9))
 
     # 10. Pencarian data tidak ada
-    s_none = system.search("plate", "ZZ 9999 XX")
+    s_none = system.search("ZZ 9999 XX", by="plate")
     status10 = "PASS" if not s_none.ok else "FAIL"
     results.append((10, "Hash Table", "Pencarian plat (tidak ada)", "Ditolak: tidak ditemukan", status10))
 
     # 11. Statistik sistem
     st11 = system.statistics().data or {}
-    status11 = "PASS" if st11.get("occupied_slots") == 5 and st11.get("queue_length") == 2 and st11.get("served_count") == 1 else "FAIL"
+    status11 = (
+        "PASS"
+        if st11.get("occupied_slots") == 5
+        and st11.get("queue_len") == 2
+        and st11.get("total_served") == 1
+        else "FAIL"
+    )
     results.append((11, "Fungsional", "Statistik sistem setelah skenario 8", "terisi 5, antre 2, riwayat 1", status11))
 
     # 12. Undo check-out (LIFO)
@@ -102,13 +117,23 @@ def run_all() -> list[tuple[int, str, str, str, str]]:
     v_asal = system.by_plate.get("B 1002 AB")
     v_prom = system.by_plate.get("B 2003 DB")
     hist_len = len(system.history.display())
-    status12 = "PASS" if u12.ok and v_asal.status == "PARKED" and v_asal.slot_index == 1 and v_prom.status == "WAITING" and hist_len == 0 else "FAIL"
+    status12 = (
+        "PASS"
+        if u12.ok
+        and v_asal is not None
+        and v_prom is not None
+        and v_asal.status == "PARKED"
+        and v_asal.slot_index == 1
+        and v_prom.status == "WAITING"
+        and hist_len == 0
+        else "FAIL"
+    )
     results.append((12, "UndoStack", "Undo check-out (kembalikan asal & demote)", "Asal parkir lagi, promosi antre lagi", status12))
 
     # 13. Undo enqueue
     u13 = system.undo_last()
     v_last_q = system.by_plate.get("B 2003 DB")
-    status13 = "PASS" if u13.ok and v_last_q.status == "REGISTERED" else "FAIL"
+    status13 = "PASS" if u13.ok and v_last_q is not None and v_last_q.status == "REGISTERED" else "FAIL"
     results.append((13, "UndoStack", "Undo enqueue", "Kendaraan terakhir antre dibatalkan", status13))
 
     # 14. Undo sampai stack kosong
@@ -141,7 +166,11 @@ def run_all() -> list[tuple[int, str, str, str, str]]:
     sys_res.check_in("B 3 C")  # antre
     res17 = sys_res.resize_slots(4)
     v_c = sys_res.by_plate.get("B 3 C")
-    status17 = "PASS" if res17.ok and sys_res.slots.capacity == 4 and v_c.status == "PARKED" else "FAIL"
+    status17 = (
+        "PASS"
+        if res17.ok and sys_res.slots.capacity == 4 and v_c is not None and v_c.status == "PARKED"
+        else "FAIL"
+    )
     results.append((17, "Dynamic Array", "Memperbesar kapasitas slot (2 -> 4)", "Kapasitas 4, antrean naik ke slot baru", status17))
 
     # 18. Resize slot (memperkecil slot terisi)
@@ -156,16 +185,16 @@ def run_all() -> list[tuple[int, str, str, str, str]]:
         for i in range(1200)
     ]
     try:
-        sum_costs_recursive(records_1200)
+        max_duration_recursive(records_1200)
         status19 = "PASS"
     except RecursionError:
         status19 = "FAIL (RecursionError)"
     except Exception as e:
         status19 = f"FAIL ({type(e).__name__})"
-    results.append((19, "Recursion", "Recursion pada 1.200 riwayat", "Total biaya tanpa batas recursion", status19))
+    results.append((19, "Recursion", "Recursion pada 1.200 riwayat", "Durasi terlama tanpa batas recursion", status19))
 
     # 20. Hash Table Collision handling
-    ht = HashTable(capacity=1, auto_rehash=False)
+    ht: HashTable[str] = HashTable(capacity=1, auto_rehash=False)
     ht.put("kunci1", "val1")
     ht.put("kunci2", "val2")
     ht.put("kunci3", "val3")
@@ -178,7 +207,8 @@ def run_all() -> list[tuple[int, str, str, str, str]]:
     for plat in ("B 9999 ZZ", "B 1111 AA", "B 5555 MM"):
         system.registrasi(plat, "Owner", "MOBIL", "UMUM")
         v = system.by_plate.get(plat)
-        vt.add(v)
+        if v is not None:
+            vt.add(v)
     inorder_plates = [v.plate for v in vt.in_order()]
     status21 = "PASS" if inorder_plates == ["B 1111 AA", "B 5555 MM", "B 9999 ZZ"] else "FAIL"
     results.append((21, "BST", "Traversal in-order VehicleTree", "Terurut menaik menurut plat", status21))
@@ -198,8 +228,10 @@ def run_all() -> list[tuple[int, str, str, str, str]]:
     results.append((23, "Graph", "Titik tidak terhubung", "Jarak inf, rute kosong, tidak crash", status23))
 
     # 24. Performa Benchmark 100.000 elemen
-    bench = run_benchmark([1000, 10000, 100000])
-    status24 = "PASS" if bench["cari"]["Hash Table"][100000] > 0 and bench["urut"]["Merge Sort"][100000] > 0 else "FAIL"
+    bench = run_benchmark((1000, 10000, 100000))
+    cari24 = _waktu(bench["cari"], "Hash Table", 100000)
+    urut24 = _waktu(bench["urut"], "Merge Sort", 100000)
+    status24 = "PASS" if cari24 and urut24 and cari24 > 0 and urut24 > 0 else "FAIL"
     results.append((24, "Benchmark", "Benchmark sampai n=100.000", "Selesai tanpa crash, data terukur", status24))
 
     return results
@@ -225,7 +257,10 @@ def main() -> None:
 
     print("-" * 80)
     print(f"Total: {len(results)} skenario | Lulus: {lulus} | Gagal: {gagal}")
-    print("Catatan: Skenario 19 gagal (RecursionError) sesuai keterbatasan desain yang dianalisis.")
+    print(
+        "Catatan: Skenario 19 memakai rekursi bagi-dua (call stack O(log n)), "
+        "jadi 1.200 riwayat tetap di bawah batas rekursi Python."
+    )
     print("=" * 80)
 
 

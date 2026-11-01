@@ -18,8 +18,8 @@ DEFAULT_PATH = DATA_DIR / "sample_data.json"
 
 REQUIRED_FIELDS = ("plate", "owner", "vtype", "initial_status")
 
-# Jarak waktu masuk antar kendaraan yang diparkir, supaya durasi dan biaya
-# di demo tidak semuanya nol.
+# Jarak waktu masuk antar kendaraan yang diparkir, supaya durasi di demo
+# tidak semuanya nol.
 JEDA_MASUK = timedelta(minutes=37)
 
 
@@ -87,7 +87,7 @@ def _sebar_waktu_masuk(hasil: list[Result]) -> None:
     """Mundurkan entry_time kendaraan yang parkir, berjenjang.
 
     check_in selalu memberi waktu sekarang, jadi tanpa ini seluruh
-    kendaraan demo berdurasi nol menit dan biayanya nol.
+    kendaraan demo berdurasi nol menit.
     """
     sekarang = datetime.now()
     terparkir = [r.data for r in hasil if r.ok and r.data is not None]

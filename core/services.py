@@ -5,6 +5,7 @@ from core.models import (
     MAX_SLOT_CAPACITY,
     MIN_SLOT_CAPACITY,
     SLOT_CAPACITY,
+    STATUS_LABEL,
     HistoryRecord,
     Priority,
     Result,
@@ -69,7 +70,7 @@ class ParkingSystem:
         v = Vehicle(vehicle_id, plate, owner, vtype, priority=priority)
         self.vehicles.insert(v)
         self.index_vehicle(v)
-        return Result.success(f"{plate} sudah {v.status}", v)
+        return Result.success(f"{plate} sudah {STATUS_LABEL[v.status]}", v)
 
     """ METHOD: Check-in """
 
@@ -78,7 +79,9 @@ class ParkingSystem:
         if v is None:
             return Result.fail(f"Kendaraan dengan plat {vehicle_plate} tidak ditemukan")
         if v.status in ("PARKED", "WAITING"):
-            return Result.fail(f"Kendaraan {v.vehicle_id} sudah {v.status}")
+            return Result.fail(
+                f"Kendaraan {v.vehicle_id} sudah {STATUS_LABEL.get(v.status, v.status)}"
+            )
 
         idx = self.slots.find_available()
         if idx != -1:

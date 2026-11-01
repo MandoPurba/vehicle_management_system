@@ -1,11 +1,7 @@
 import random
 from datetime import datetime, timedelta
 
-from core.algorithms.recursion import (
-    count_occupied_recursive,
-    max_duration_recursive,
-    sum_costs_recursive,
-)
+from core.algorithms.recursion import count_occupied_recursive, max_duration_recursive
 from core.algorithms.searching import (
     binary_search,
     binary_search_first,
@@ -20,7 +16,7 @@ from core.algorithms.sorting import (
     quick_sort,
     sort_history,
 )
-from core.models import HistoryRecord, hitung_biaya
+from core.models import HistoryRecord
 from core.services import ParkingSystem
 
 AWAL = datetime(2026, 10, 30, 8, 0, 0)
@@ -83,21 +79,23 @@ def test_binary_search_first_dan_lower_bound() -> None:
     assert lower_bound(data, 100) == len(data)
 
 
-def test_urut_riwayat_menurut_waktu_durasi_dan_biaya() -> None:
+def test_urut_riwayat_menurut_waktu_durasi_dan_plat() -> None:
     riwayat = _riwayat()
 
     assert [r.plate for r in sort_history(riwayat, "entry_time")] == ["B 2 BBB", "B 3 CCC", "B 1 AAA"]
     assert [r.plate for r in sort_history(riwayat, "duration")] == ["B 1 AAA", "B 3 CCC", "B 2 BBB"]
-    assert [r.plate for r in sort_history(riwayat, "cost")] == ["B 1 AAA", "B 3 CCC", "B 2 BBB"]
     assert [r.plate for r in sort_history(riwayat, "plate")] == ["B 1 AAA", "B 2 BBB", "B 3 CCC"]
-    menurun = sort_history(riwayat, "cost", descending=True)
+    menurun = sort_history(riwayat, "duration", descending=True)
     assert menurun[0].plate == "B 2 BBB"
+    # Keempat algoritma harus memberi urutan yang sama persis.
     for algo in ("merge", "quick", "insertion", "bubble"):
-        assert [r.plate for r in sort_history(riwayat, "cost", algorithm=algo)] == [
+        assert [r.plate for r in sort_history(riwayat, "duration", algorithm=algo)] == [
             "B 1 AAA",
             "B 3 CCC",
             "B 2 BBB",
         ]
+    # Algoritma yang tidak dikenal jatuh ke merge sort, bukan error.
+    assert sort_history(riwayat, "duration", algorithm="entah") == sort_history(riwayat, "duration")
 
 
 def test_cari_riwayat_lewat_binary_search() -> None:
@@ -112,22 +110,6 @@ def test_cari_riwayat_lewat_binary_search() -> None:
     assert search_history(riwayat, "plate", "Z 9 ZZZ")["record"] is None
 
 
-def test_biaya_kampus_proporsional_per_menit() -> None:
-    # Tarif kampus: MOBIL 2.000/jam, MOTOR 1.000/jam, per menit.
-    assert hitung_biaya("MOBIL", timedelta(hours=1)) == 2000
-    assert hitung_biaya("MOBIL", timedelta(minutes=30)) == 1000
-    assert hitung_biaya("MOTOR", timedelta(hours=1)) == 1000
-    assert hitung_biaya("MOTOR", timedelta(hours=8)) == 8000
-    # Dibulatkan ke atas ke ratusan, jadi sebentar pun tetap kena Rp 100.
-    assert hitung_biaya("MOBIL", timedelta(minutes=1)) == 100
-    assert hitung_biaya("MOBIL", timedelta(seconds=5)) == 100
-    # Keluar tanpa sempat parkir tidak ditagih.
-    assert hitung_biaya("MOBIL", timedelta(0)) == 0
-    assert hitung_biaya("MOTOR", timedelta(0)) == 0
-    # Dua kali lebih lama berarti dua kali lebih mahal, tanpa lompatan per jam.
-    assert hitung_biaya("MOBIL", timedelta(hours=2)) == 2 * hitung_biaya("MOBIL", timedelta(hours=1))
-
-
 def test_fungsi_rekursif_dipakai_statistik_sistem() -> None:
     system = ParkingSystem(capacity=4)
     for plat in ("B 1 AAA", "B 2 BBB"):
@@ -138,9 +120,7 @@ def test_fungsi_rekursif_dipakai_statistik_sistem() -> None:
     assert system.statistics().data["occupied_slots"] == 2
 
     riwayat = _riwayat()
-    assert sum_costs_recursive(riwayat) == sum(r.cost for r in riwayat)
     assert max_duration_recursive(riwayat) == 360
-    assert sum_costs_recursive([]) == 0
     assert max_duration_recursive([]) == 0
 
     awal = datetime(2026, 10, 31, 8, 0, 0)
@@ -148,4 +128,6 @@ def test_fungsi_rekursif_dipakai_statistik_sistem() -> None:
         HistoryRecord(f"V{i:04d}", f"B {i} XX", "A01", awal, awal + timedelta(hours=1), "MOBIL")
         for i in range(1200)
     ]
-    assert sum_costs_recursive(banyak) == sum(r.cost for r in banyak)
+    # 1.200 riwayat: rekursi linear akan kena batas ~1000 frame Python,
+    # versi bagi-dua kedalamannya hanya O(log n).
+    assert max_duration_recursive(banyak) == 60

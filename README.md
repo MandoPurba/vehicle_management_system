@@ -17,7 +17,7 @@ Struktur Data (DS01).
 | Pencarian | Mencari kendaraan berdasarkan plat, ID, atau pemilik |
 | Undo | Membatalkan transaksi terakhir (check-in / antre / check-out) |
 | Laporan | Status slot, isi antrean, riwayat parkir, dan statistik |
-| Statistik rekursif | `count_occupied_recursive`, `sum_costs_recursive`, `max_duration_recursive` |
+| Statistik rekursif | `count_occupied_recursive` dan `max_duration_recursive` |
 | Ubah jumlah slot | Memperbesar atau memperkecil parkiran saat aplikasi jalan |
 | Reset | Mengosongkan seluruh state sistem, jumlah slot tetap |
 | Data contoh | Mengisi sistem dari `data/sample_data.json` sekali klik |
@@ -30,8 +30,8 @@ Struktur Data (DS01).
 | 2 | Daftar kendaraan terurut | BST | `core/structures/bst.py` (`VehicleTree`); tab **Kendaraan (BST)** menampilkan inorder, preorder, postorder, dan gambar percabangannya |
 | 3 | Parkir prioritas | Heap | `core/structures/heap.py`; empat level prioritas (disabilitas, dosen, tamu, umum) di tab **Antrean** |
 | 4 | Peta area parkir dan rute | Graph | `core/structures/graph.py` + `core/parking_map.py`; tab **Slot & peta** menampilkan slot kosong terdekat dari gerbang/gedung beserta gambar petanya |
-| 5 | Pengurutan riwayat parkir | Sorting & Searching | `core/algorithms/sorting.py` dan `searching.py`; tab **Riwayat** mengurutkan menurut waktu, durasi, atau biaya lalu binary search di atasnya |
-| 6 | Dashboard statistik | Recursion + visualisasi | tab **Dashboard**: kartu ringkasan, lima grafik, dan tiga angka yang dihitung rekursif |
+| 5 | Pengurutan riwayat parkir | Sorting & Searching | `core/algorithms/sorting.py` dan `searching.py`; tab **Riwayat** mengurutkan menurut waktu masuk, waktu keluar, durasi, atau plat lalu binary search di atasnya |
+| 6 | Dashboard statistik | Recursion + visualisasi | tab **Dashboard**: kartu ringkasan, empat grafik, dan dua angka yang dihitung rekursif |
 | 7 | Halaman benchmark | Analisis kompleksitas | `core/benchmark.py`; tab **Benchmark** mengukur n = 1.000 / 10.000 / 100.000 |
 
 ## Struktur data yang dipakai
@@ -57,6 +57,9 @@ Tiap fitur dipetakan ke satu struktur data:
 ```
 vehicle_management_system/
 ├── app.py              # Entry point Streamlit
+├── Dockerfile          # Image aplikasi
+├── docker-compose.yml  # Aplikasi + jaringan tunnel
+├── .streamlit/         # config.toml
 ├── core/
 │   ├── services.py     # ParkingSystem — facade seluruh operasi
 │   ├── persistence.py  # Simpan & muat state ke data/state.json
@@ -96,9 +99,9 @@ sama bisa saling menyalip. Undo enqueue mencabut kendaraan yang
 ditunjuk, bukan yang paling belakang, karena heap tidak punya
 "belakang".
 
-**Tarif parkir kampus proporsional per menit**, dibulatkan ke ratusan
-rupiah, dan kendaraan yang keluar tanpa sempat parkir tidak ditagih.
-Bukan tarif per jam penuh seperti parkir umum.
+**Tidak ada tarif maupun tagihan.** Ini parkir kampus, bukan parkir
+komersial: sistem hanya mencatat kapan kendaraan masuk dan keluar
+beserta durasinya.
 
 **Rehash hash table bisa dimatikan** lewat `HashTable(auto_rehash=False)`.
 Dipakai test dan demo collision: dengan rehash menyala, rantai tabrakan
@@ -188,12 +191,77 @@ jumlah slotnya. Sesi berikutnya membaca file itu dan membangun ulang
 indeks hash plat serta id. Tombol **Reset sistem** menulis snapshot
 kosong dengan jumlah slot yang sedang dipakai.
 
+### Dengan Docker, lewat Cloudflare Tunnel
+
+Container cloudflared diurus di luar project ini; compose hanya
+menjalankan aplikasinya lalu menempelkannya ke jaringan Docker yang sama
+supaya tunnel bisa menjangkaunya.
+
+```bash
+docker network create tunel      # kalau jaringannya belum ada
+docker compose up -d --build
+docker compose logs -f app
+```
+
+Lalu di dashboard Cloudflare Zero Trust, arahkan public hostname ke:
+
+```
+http://smart-parking:8501
+```
+
+Nama itu adalah alias jaringan di `docker-compose.yml`, bukan nama
+container, jadi tetap berlaku walau container-nya diganti nama. Port
+8501 juga diikat ke `127.0.0.1` supaya bisa diperiksa langsung dari
+mesin sendiri tanpa membuka port ke jaringan luar.
+
+| Hal | Keterangan |
+| --- | --- |
+| Jaringan | `tunel`, dideklarasikan `external` karena dibuat di luar compose |
+| State | Volume `state` di `/app/state`, bukan di `/app/data`, supaya tidak menutupi `sample_data.json` yang ikut di dalam image |
+| Lokasi state | Diatur env `PARKIR_STATE_PATH`; default tetap `data/state.json` saat jalan di luar container |
+| User | Non-root (uid 10001) |
+| Healthcheck | `/_stcore/health`, diperiksa pakai `urllib` agar image tidak perlu `curl` |
+
+**Proteksi XSRF dan CORS Streamlit dimatikan di compose.** Hostname
+publik datang dari Cloudflare dan berbeda dari alamat yang didengarkan
+Streamlit, jadi kalau dibiarkan menyala permintaannya ditolak terus.
+Untuk menyalakannya kembali, isi `PUBLIC_HOSTNAME` di `.env` dengan
+hostname tunnel-mu lalu hapus dua baris `ENABLE_CORS` dan
+`ENABLE_XSRF_PROTECTION` di `docker-compose.yml`.
+
+**Aplikasi ini tidak punya autentikasi.** Begitu tunnel-nya hidup,
+siapa pun yang punya URL-nya bisa mendaftarkan kendaraan, menekan Reset
+sistem, dan menjalankan benchmark. Untuk demo kelas tidak masalah, tapi
+jangan ditinggal hidup lebih lama dari perlunya. Cloudflare Access bisa
+dipasang di depan hostname itu kalau mau dibatasi.
+
 Menjalankan test:
 
 ```bash
 python -m pytest        # butuh `pip install pytest` dulu
 uv run pytest           # kalau pakai uv
+uv run --with pytest-cov pytest --cov=core --cov-report=term-missing
 ```
+
+Ada 148 test di 15 file, satu file per struktur data atau modul:
+
+| File | Menguji |
+| --- | --- |
+| `test_dynamic_array.py` | `DynamicArray` dan `ParkingSlots`, termasuk penggandaan buffer dan batas indeks |
+| `test_linked_list.py` | `VehicleList` (sisip, cari, hapus kepala/tengah/ekor) dan `ParkingHistory` |
+| `test_queue.py` | `WaitingQueue` — FIFO, peek, push_front, remove_rear |
+| `test_stack.py` | `UndoStack` — LIFO, peek, clear |
+| `test_hash_table.py` | Collision chaining, load factor, rehash |
+| `test_bst.py` | `BST`, `HistoryTree`, `VehicleTree`, ketiga traversal, pohon rantai |
+| `test_heap.py` | `MinHeap` dan antrean berprioritas |
+| `test_graph.py` | BFS, DFS, Dijkstra, slot terdekat |
+| `test_algorithms.py` | Sorting, binary search, rekursi |
+| `test_services.py` | `ParkingSystem`: jalur gagal registrasi, check-in, check-out, undo |
+| `test_persistence.py` | Simpan–muat dan penolakan file state yang rusak |
+| `test_sample_data.py` | Loader data contoh dan validasi filenya |
+| `test_resize.py` | Ubah jumlah slot |
+| `test_benchmark.py` | Pengukuran kompleksitas |
+| `test_diagrams.py` | Diagram Mermaid peta dan pohon |
 
 ## Status pengembangan
 
@@ -206,7 +274,7 @@ Proyek masih dalam pengerjaan:
 - [x] Antarmuka Streamlit delapan tab di `views/parking_ui.py`
 - [x] Data contoh di `data/sample_data.json`
 - [x] Persistensi state ke `data/state.json` (simpan & muat ulang)
-- [x] Unit test di `tests/` (75 test)
+- [x] Unit test di `tests/` — 148 test, 15 file, coverage `core/` 97%
 
 Fitur wajib UAS:
 

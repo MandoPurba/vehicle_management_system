@@ -33,3 +33,6 @@ data/state.json
 # Skill/tooling agen, bukan kode proyek
 .agents/
 .claude/
+
+# Variabel lingkungan, contohnya ada di .env.example
+.env

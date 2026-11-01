@@ -10,7 +10,7 @@ from typing import cast
 
 import streamlit as st
 
-from core.algorithms.recursion import max_duration_recursive, sum_costs_recursive
+from core.algorithms.recursion import max_duration_recursive
 from core.algorithms.searching import search_history
 from core.algorithms.sorting import sort_history
 from core.benchmark import UKURAN, run_benchmark
@@ -19,7 +19,6 @@ from core.models import (
     MIN_SLOT_CAPACITY,
     PRIORITY_LABEL,
     SLOT_CAPACITY,
-    TARIF_PER_JAM,
     HistoryRecord,
     Priority,
     Result,
@@ -47,7 +46,6 @@ SORT_LABELS: dict[str, str] = {
     "entry_time": "Waktu masuk",
     "exit_time": "Waktu keluar",
     "duration": "Durasi parkir",
-    "cost": "Biaya",
     "plate": "Plat nomor",
 }
 ALGO_LABELS: dict[str, str] = {
@@ -105,10 +103,6 @@ def _clock(moment: datetime | None) -> str:
     return moment.strftime("%H:%M:%S") if moment else "-"
 
 
-def _rupiah(nilai: float) -> str:
-    return f"Rp {int(nilai):,}".replace(",", ".")
-
-
 def _ribuan(n: int) -> str:
     return f"{n:,}".replace(",", ".")
 
@@ -133,14 +127,12 @@ def _render_dashboard(system: ParkingSystem) -> None:
     for col, (label, key) in zip(st.columns(len(labels)), labels, strict=True):
         col.metric(label, stats.get(key, 0))
 
-    rekursif = st.columns(3)
+    rekursif = st.columns(2)
     rekursif[0].metric("Slot terisi", stats.get("occupied_slots", 0))
-    rekursif[1].metric("Total pendapatan", _rupiah(sum_costs_recursive(records)))
-    rekursif[2].metric("Durasi terlama", f"{max_duration_recursive(records)} menit")
+    rekursif[1].metric("Durasi terlama", f"{max_duration_recursive(records)} menit")
     st.caption(
-        "Tiga angka di atas dihitung tanpa loop oleh `count_occupied_recursive`, "
-        "`sum_costs_recursive`, dan `max_duration_recursive` di "
-        "`core/algorithms/recursion.py`."
+        "Dua angka di atas dihitung tanpa loop oleh `count_occupied_recursive` "
+        "dan `max_duration_recursive` di `core/algorithms/recursion.py`."
     )
 
     st.divider()
@@ -159,19 +151,12 @@ def _render_dashboard(system: ParkingSystem) -> None:
         st.dataframe(data.T, width="stretch")
 
     if not records:
-        st.info("Grafik check-out dan pendapatan muncul setelah ada kendaraan keluar.")
+        st.info("Grafik check-out dan durasi muncul setelah ada kendaraan keluar.")
         return
 
     st.divider()
-    kiri, kanan = st.columns(2)
-    with kiri:
-        st.subheader("Check-out per jam")
-        st.line_chart(charts.checkout_per_jam(records), color=charts.SERIES[0])
-    with kanan:
-        st.subheader("Pendapatan per jam")
-        # Dipisah dari grafik di sebelah: satu grafik satu sumbu, skala
-        # rupiah tidak boleh ditumpuk dengan skala jumlah kendaraan.
-        st.line_chart(charts.pendapatan_per_jam(records), color=charts.SERIES[1])
+    st.subheader("Check-out per jam")
+    st.line_chart(charts.checkout_per_jam(records), color=charts.SERIES[0])
 
     st.subheader("Durasi parkir per kendaraan")
     st.bar_chart(charts.durasi_per_kendaraan(records), color=charts.SERIES[2])
@@ -230,12 +215,6 @@ def _form_check_out(system: ParkingSystem) -> None:
             st.info("Tidak ada kendaraan yang sedang parkir.")
         if st.form_submit_button("Check-out", type="primary", disabled=plate is None) and plate:
             _apply(system.check_out(plate))
-    st.caption(
-        "Tarif parkir kampus: "
-        + ", ".join(f"{t} {_rupiah(h)}/jam" for t, h in TARIF_PER_JAM.items())
-        + " — dihitung proporsional per menit, dibulatkan ke ratusan. "
-        "Keluar tanpa sempat parkir tidak ditagih."
-    )
 
 
 def _form_search(system: ParkingSystem) -> None:
@@ -551,7 +530,6 @@ def _render_history(system: ParkingSystem) -> None:
                 "Masuk": _clock(r.entry_time),
                 "Keluar": _clock(r.exit_time),
                 "Durasi (menit)": r.duration_minutes,
-                "Biaya": _rupiah(r.cost),
             }
             for r in terurut
         ],
@@ -594,7 +572,6 @@ def _render_history(system: ParkingSystem) -> None:
                     "Slot": r.slot_code,
                     "Keluar": _clock(r.exit_time),
                     "Durasi (menit)": r.duration_minutes,
-                    "Biaya": _rupiah(r.cost),
                 }
                 for r in hasil_rentang
             ],
@@ -608,25 +585,23 @@ def _render_history(system: ParkingSystem) -> None:
         kolom = st.columns([1, 2])
         cari_by = kolom[0].selectbox(
             "Kunci",
-            ("plate", "cost", "duration"),
+            ("plate", "duration"),
             format_func=lambda k: SORT_LABELS[k],
             key="bs_key",
         )
         nilai_teks = kolom[1].text_input(
             "Nilai yang dicari",
             key="bs_value",
-            help="Plat apa adanya, biaya dalam rupiah, durasi dalam menit.",
+            help="Plat apa adanya, durasi dalam menit.",
         )
         submitted = st.form_submit_button("Cari")
 
     if not submitted:
         return
-    target: str | int | timedelta
+    target: str | timedelta
     try:
         if cari_by == "plate":
             target = nilai_teks.strip()
-        elif cari_by == "cost":
-            target = int(nilai_teks)
         else:
             target = timedelta(minutes=int(nilai_teks))
     except ValueError:
@@ -640,7 +615,7 @@ def _render_history(system: ParkingSystem) -> None:
         r = hasil["record"]
         st.success(
             f"Ketemu di indeks {hasil['index']}: {r.plate}, "
-            f"{r.duration_minutes} menit, {_rupiah(r.cost)}"
+            f"{r.duration_minutes} menit"
         )
     st.caption(
         f"Binary search memeriksa sekitar {hasil['binary_steps']} data, "
@@ -795,7 +770,7 @@ def _render_benchmark() -> None:
     )
 
     st.divider()
-    st.subheader("Bentuk BST menentukan biayanya")
+    st.subheader("Bentuk BST menentukan kecepatannya")
     st.dataframe(
         [
             {
