@@ -240,7 +240,28 @@ Menjalankan test:
 ```bash
 python -m pytest        # butuh `pip install pytest` dulu
 uv run pytest           # kalau pakai uv
+uv run --with pytest-cov pytest --cov=core --cov-report=term-missing
 ```
+
+Ada 148 test di 15 file, satu file per struktur data atau modul:
+
+| File | Menguji |
+| --- | --- |
+| `test_dynamic_array.py` | `DynamicArray` dan `ParkingSlots`, termasuk penggandaan buffer dan batas indeks |
+| `test_linked_list.py` | `VehicleList` (sisip, cari, hapus kepala/tengah/ekor) dan `ParkingHistory` |
+| `test_queue.py` | `WaitingQueue` — FIFO, peek, push_front, remove_rear |
+| `test_stack.py` | `UndoStack` — LIFO, peek, clear |
+| `test_hash_table.py` | Collision chaining, load factor, rehash |
+| `test_bst.py` | `BST`, `HistoryTree`, `VehicleTree`, ketiga traversal, pohon rantai |
+| `test_heap.py` | `MinHeap` dan antrean berprioritas |
+| `test_graph.py` | BFS, DFS, Dijkstra, slot terdekat |
+| `test_algorithms.py` | Sorting, binary search, rekursi |
+| `test_services.py` | `ParkingSystem`: jalur gagal registrasi, check-in, check-out, undo |
+| `test_persistence.py` | Simpan–muat dan penolakan file state yang rusak |
+| `test_sample_data.py` | Loader data contoh dan validasi filenya |
+| `test_resize.py` | Ubah jumlah slot |
+| `test_benchmark.py` | Pengukuran kompleksitas |
+| `test_diagrams.py` | Diagram Mermaid peta dan pohon |
 
 ## Status pengembangan
 
@@ -253,7 +274,7 @@ Proyek masih dalam pengerjaan:
 - [x] Antarmuka Streamlit delapan tab di `views/parking_ui.py`
 - [x] Data contoh di `data/sample_data.json`
 - [x] Persistensi state ke `data/state.json` (simpan & muat ulang)
-- [x] Unit test di `tests/` (75 test)
+- [x] Unit test di `tests/` — 148 test, 15 file, coverage `core/` 97%
 
 Fitur wajib UAS:
 
